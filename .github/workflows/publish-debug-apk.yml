@@ -3,11 +3,14 @@ on:
     branches: [main]
   pull_request:
 
+env:
+  PUB_USER: shrmpy
+  PUB_GAME: egj2022
 
 jobs:
-  makelib_job:
+  make_apk_job:
     runs-on: ubuntu-latest
-    name: Make library job
+    name: Make APK job
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v3
@@ -30,9 +33,12 @@ jobs:
           go get golang.org/x/mobile/bind
           gomobile build -target=android .
 
-      - name: Compress apk
-        shell: bash
-        run: tar -zcvf debug-apk.tgz *.apk
+      - name: Compress APK
+        run: |
+          mkdir -p ./build/android
+          mv *.apk ./build/android/
+          tar -zcvf debug-apk.tgz build/
+
       - name: Archive tarball artifacts
         uses: actions/upload-artifact@v3
         with:
@@ -40,4 +46,26 @@ jobs:
           retention-days: 1
           path: |
             *.tgz
+
+  pub_apk_job:
+    name: Pub debug APK to itch.io
+    if: startsWith(github.event.ref, 'refs/tags/v') && github.ref == 'refs/heads/main'
+    needs: make_apk_job
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: gomobile-debug-apk
+
+    - name: Extract tarball
+      shell: bash
+      run: tar -zxvf debug-apk.tgz
+    - uses: manleydev/butler-publish-itchio-action@master
+      env:
+        BUTLER_CREDENTIALS: ${{ secrets.BUTLER_API_KEY }}
+        CHANNEL: android
+        ITCH_GAME: ${{ env.PUB_GAME }}
+        ITCH_USER: ${{ env.PUB_USER }}
+        PACKAGE: build/android
+        VERSION: ${{github.ref_name}}
 
