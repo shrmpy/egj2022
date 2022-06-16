@@ -5,6 +5,7 @@ Let's finish something!
 When done 🤞, download will be on the [itch.io site here](https://shrmpy.itch.io/egj2022)
 
 
+###### v0.0.2
 ## Credits
 
 Github workflow
