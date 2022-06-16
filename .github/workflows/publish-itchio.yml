@@ -124,7 +124,7 @@ jobs:
 
   pub-win:
     name: Pub PC build to itch.io
-    if: startsWith(github.event.ref, 'refs/tags/v')
+    if: startsWith(github.event.ref, 'refs/tags/v') && github.ref == 'refs/heads/main'
     needs: build-win
     runs-on: ubuntu-latest
     steps:
@@ -142,7 +142,8 @@ jobs:
 
   pub-mac:
     name: Pub OSX build to itch.io
-    if: startsWith(github.event.ref, 'refs/tags/v')
+    if: startsWith(github.event.ref, 'refs/tags/v') && github.ref == 'refs/heads/main'
+
     needs: build-mac
     runs-on: ubuntu-latest
     steps:
@@ -163,7 +164,8 @@ jobs:
 
   pub-lin:
     name: Pub Linux build to itch.io
-    if: startsWith(github.event.ref, 'refs/tags/v')
+    if: startsWith(github.event.ref, 'refs/tags/v') && github.ref == 'refs/heads/main'
+
     needs: build-lin
     runs-on: ubuntu-latest
     steps:
@@ -184,7 +186,8 @@ jobs:
 
   pub-web:
     name: Pub Web build to itch.io
-    if: startsWith(github.event.ref, 'refs/tags/v')
+    if: startsWith(github.event.ref, 'refs/tags/v') && github.ref == 'refs/heads/main'
+
     needs: build-web
     runs-on: ubuntu-latest
     steps:
