@@ -2,6 +2,8 @@
 Let's finish something!
  Magnet theme [Ebitengine Game Jam 2022](https://itch.io/jam/ebiten-game-jam)
 
+When done 🤞, download will be on the [itch.io site here](https://shrmpy.itch.io/egj2022)
+
 
 ## Credits
 

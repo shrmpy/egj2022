@@ -1,12 +1,12 @@
-name: Release to itch.io
+name: Publish on itch.io
 on:
   push:
     branches: [main]
   pull_request:
 
 env:
-  ITCH_USER_NAME: shrmpy
-  ITCH_GAME_NAME: egj2022
+  PUB_USER: shrmpy
+  PUB_GAME: egj2022
 
 jobs:
 
@@ -27,7 +27,7 @@ jobs:
       run: xvfb-run go test -v ./...
 
   build-win:
-    name: Build Windows binary
+    name: Build PC binary
     needs: tests
     runs-on: windows-latest
     steps:
@@ -36,20 +36,20 @@ jobs:
       uses: actions/setup-go@v3
       with:
         go-version: '>=1.18.0'
-    - name: Build Windows exe
+    - name: Build PC exe
       shell: bash
       run: go build
-    - name: Upload Windows exe
+    - name: Upload PC exe
       uses: actions/upload-artifact@v3
       with:
-        name: egj2022-win
+        name: ${{ env.PUB_GAME }}-win
         retention-days: 1
         path: |
           LICENSE
-          egj2022.exe
+          *.exe
 
   build-mac:
-    name: Build MacOS binary
+    name: Build OSX binary
     needs: tests
     runs-on: macos-latest
     steps:
@@ -58,17 +58,17 @@ jobs:
       uses: actions/setup-go@v3
       with:
         go-version: '>=1.18.0'
-    - name: Build Mac exe
+    - name: Build OSX bin
       shell: bash
       run: go build
     - name: Tar it up
       shell: bash
-      run: tar -zcvf egj2022-mac.tar.gz egj2022 LICENSE
-    - name: Upload Mac exe
+      run: tar -zcvf ${{ env.PUB_GAME }}-mac.tar.gz LICENSE ${{ env.PUB_GAME }}
+    - name: Upload OSX bin
       uses: actions/upload-artifact@v3
       with:
-        name: egj2022-mac
-        path: egj2022-mac.tar.gz
+        name: ${{ env.PUB_GAME }}-mac
+        path: ${{ env.PUB_GAME }}-mac.tar.gz
         retention-days: 1
 
   build-lin:
@@ -84,21 +84,21 @@ jobs:
     - name: Install dependencies
       shell: bash
       run: sudo apt-get -y install libgl1-mesa-dev xorg-dev libasound2-dev
-    - name: Build Linux exe
+    - name: Build Linux bin
       shell: bash
       run: go build -v
     - name: Tar it up
       shell: bash
-      run: tar -zcvf egj2022-lin.tar.gz egj2022 LICENSE
-    - name: Upload Linux exe
+      run: tar -zcvf ${{ env.PUB_GAME }}-lin.tar.gz LICENSE ${{ env.PUB_GAME }}
+    - name: Upload Linux bin
       uses: actions/upload-artifact@v3
       with:
-        name: egj2022-lin
-        path: egj2022-lin.tar.gz
+        name: ${{ env.PUB_GAME }}-lin
+        path: ${{ env.PUB_GAME }}-lin.tar.gz
         retention-days: 1
 
   build-web:
-    name: Build Web binary
+    name: Build Web assembly
     needs: tests
     runs-on: ubuntu-latest
     steps:
@@ -107,124 +107,95 @@ jobs:
       uses: actions/setup-go@v3
       with:
         go-version: '>=1.18.0'
-    - name: Build Web binary
+    - name: Build wasm
       shell: bash
-      run: GOOS=js GOARCH=wasm go build -v -ldflags "-w -s" -o dist/web/egj2022.wasm
+      run: GOOS=js GOARCH=wasm go build -v -ldflags "-w -s" -o dist/web/${{ env.PUB_GAME }}.wasm
     - name: Copy WASM exec script
       shell: bash
       run: cp $(go env GOROOT)/misc/wasm/wasm_exec.js dist/web/.
-    - name: Upload Web build
+    - name: Upload wasm
       uses: actions/upload-artifact@v3
       with:
-        name: egj2022-web
+        name: ${{ env.PUB_GAME }}-web
         retention-days: 1
         path: |
           dist/web/
           LICENSE
 
-  upload-bundle:
-    name: Bundle binaries with dev assets
-    runs-on: ubuntu-latest
-    needs: [build-lin, build-mac, build-win]
-    steps:
-    - uses: actions/checkout@v3
-    - name: Download Windows binary
-      uses: actions/download-artifact@v3
-      with:
-        name: egj2022-win
-    - name: Download Linux binary
-      uses: actions/download-artifact@v3
-      with:
-        name: egj2022-lin
-    - name: Download Mac binary
-      uses: actions/download-artifact@v3
-      with:
-        name: egj2022-mac
-    - name: Upload beta testing bundle
-      uses: actions/upload-artifact@v3
-      with:
-        name: egj2022-bundle
-        path: |
-          README.md
-          LICENSE
-          egj2022-lin.tar.gz
-          egj2022-mac.tar.gz
-          egj2022.exe
-
-  deploy-win:
-    name: Deploy Windows build to itch.io
+  pub-win:
+    name: Pub PC build to itch.io
     if: startsWith(github.event.ref, 'refs/tags/v')
     needs: build-win
     runs-on: ubuntu-latest
     steps:
     - uses: actions/download-artifact@v3
       with:
-        name: egj2022-win
-    - uses: josephbmanley/butler-publish-itchio-action@master
+        name: ${{ env.PUB_GAME }}-win
+    - uses: manleydev/butler-publish-itchio-action@master
       env:
         BUTLER_CREDENTIALS: ${{ secrets.BUTLER_API_KEY }}
         CHANNEL: windows
-        ITCH_GAME: ${{ env.ITCH_GAME_NAME }}
-        ITCH_USER: ${{ env.ITCH_USER_NAME }}
-        PACKAGE: egj2022.exe
+        ITCH_GAME: ${{ env.PUB_GAME }}
+        ITCH_USER: ${{ env.PUB_USER }}
+        PACKAGE: build/windows
         VERSION: ${{github.ref_name}}
 
-  deploy-mac:
-    name: Deploy MacOs build to itch.io
+  pub-mac:
+    name: Pub OSX build to itch.io
     if: startsWith(github.event.ref, 'refs/tags/v')
     needs: build-mac
     runs-on: ubuntu-latest
     steps:
     - uses: actions/download-artifact@v3
       with:
-        name: egj2022-mac
+        name: ${{ env.PUB_GAME }}-mac
     - name: Extract tarball
       shell: bash
-      run: tar -zxvf egj2022-mac.tar.gz
-    - uses: josephbmanley/butler-publish-itchio-action@master
+      run: tar -zxvf ${{ env.PUB_GAME }}-mac.tar.gz
+    - uses: manleydev/butler-publish-itchio-action@master
       env:
         BUTLER_CREDENTIALS: ${{ secrets.BUTLER_API_KEY }}
         CHANNEL: mac
-        ITCH_GAME: ${{ env.ITCH_GAME_NAME }}
-        ITCH_USER: ${{ env.ITCH_USER_NAME }}
-        PACKAGE: egj2022
+        ITCH_GAME: ${{ env.PUB_GAME }}
+        ITCH_USER: ${{ env.PUB_USER }}
+        PACKAGE: build/mac
         VERSION: ${{github.ref_name}}
 
-  deploy-lin:
-    name: Deploy Linux build to itch.io
+  pub-lin:
+    name: Pub Linux build to itch.io
     if: startsWith(github.event.ref, 'refs/tags/v')
     needs: build-lin
     runs-on: ubuntu-latest
     steps:
     - uses: actions/download-artifact@v3
       with:
-        name: egj2022-lin
+        name: ${{ env.PUB_GAME }}-lin
     - name: Extract tarball
       shell: bash
-      run: tar -zxvf egj2022-lin.tar.gz
-    - uses: josephbmanley/butler-publish-itchio-action@master
+      run: tar -zxvf ${{ env.PUB_GAME }}-lin.tar.gz
+    - uses: manleydev/butler-publish-itchio-action@master
       env:
-        BUTLER_CREDENTIALS: ${{ secrets.BUTLER_CREDENTIALS }}
+        BUTLER_CREDENTIALS: ${{ secrets.BUTLER_API_KEY }}
         CHANNEL: linux
-        ITCH_GAME: ${{ env.ITCH_GAME_NAME }}
-        ITCH_USER: ${{ env.ITCH_USER_NAME }}
-        PACKAGE: egj2022
+        ITCH_GAME: ${{ env.PUB_GAME }}
+        ITCH_USER: ${{ env.PUB_USER }}
+        PACKAGE: build/linux
         VERSION: ${{github.ref_name}}
 
-  deploy-web:
-    name: Deploy Web build to itch.io
+  pub-web:
+    name: Pub Web build to itch.io
     if: startsWith(github.event.ref, 'refs/tags/v')
     needs: build-web
     runs-on: ubuntu-latest
     steps:
     - uses: actions/download-artifact@v3
       with:
-        name: egj2022-web
-    - uses: josephbmanley/butler-publish-itchio-action@master
+        name: ${{ env.PUB_GAME }}-web
+    - uses: manleydev/butler-publish-itchio-action@master
       env:
-        BUTLER_CREDENTIALS: ${{ secrets.BUTLER_CREDENTIALS }}
+        BUTLER_CREDENTIALS: ${{ secrets.BUTLER_API_KEY }}
         CHANNEL: web
-        ITCH_GAME: ${{ env.ITCH_GAME_NAME }}
-        ITCH_USER: ${{ env.ITCH_USER_NAME }}
+        ITCH_GAME: ${{ env.PUB_GAME }}
+        ITCH_USER: ${{ env.PUB_USER }}
         PACKAGE: dist/web
         VERSION: ${{github.ref_name}}
