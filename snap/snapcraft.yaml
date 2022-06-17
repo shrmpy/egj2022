@@ -1,0 +1,60 @@
+name: egj2022
+base: core20
+summary: Ebitengine Game Jam entry 
+description: |
+  This is in development. It is for the Ebitengine Game Jam 2022's magnet theme.
+  I read that the Linux channel for itch.io downloads do not allow 32/64 bit
+  tags. This tells me ARM has fewer options. So snaps should be a convenient
+  way to reach some subset of that audience (me included).
+
+
+confinement: strict
+architectures:
+  - build-on: amd64
+  - build-on: arm64
+  - build-on: armhf
+
+version: "0.0.1"
+grade: stable
+
+apps:
+  egj2022:
+    command: bin/desktop-launch $SNAP/bin/egj2022
+    plugs: [network,x11,unity7,opengl]
+
+parts:
+  g-build:
+    plugin: go
+    source: .
+    build-packages: 
+    - git
+    - libc6-dev
+    - libglu1-mesa-dev
+    - libgl1-mesa-dev
+    - libxcursor-dev
+    - libxi-dev
+    - libxinerama-dev
+    - libxrandr-dev
+    - libxxf86vm-dev
+    - libasound2-dev
+    - pkg-config
+    stage-packages: 
+    - libgl1-mesa-glx
+    - libxcursor1
+    - libxi6
+    - libxinerama1
+    - libxrandr2
+    - libxxf86vm1
+    after: [desktop-glib-only]
+
+  desktop-glib-only:
+    source: https://github.com/ubuntu/snapcraft-desktop-helpers.git
+    source-subdir: glib-only
+    source-depth: 1
+    plugin: make
+    build-packages:
+      - libglib2.0-dev
+    stage-packages:
+      - libglib2.0-bin
+
+
