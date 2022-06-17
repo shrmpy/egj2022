@@ -9,13 +9,11 @@ description: |
 
 
 confinement: strict
+adopt-info: g-build
 architectures:
   - build-on: amd64
   - build-on: arm64
   - build-on: armhf
-
-version: "0.0.1"
-grade: stable
 
 apps:
   egj2022:
@@ -26,6 +24,13 @@ parts:
   g-build:
     plugin: go
     source: .
+
+    override-pull: |
+        snapcraftctl pull
+        version="$(git describe --tags --long)"
+        snapcraftctl set-version "$version"
+        snapcraftctl set-grade stable
+
     build-packages: 
     - git
     - libc6-dev
