@@ -49,7 +49,7 @@ jobs:
 
   pub_apk_job:
     name: Pub debug APK to itch.io
-    if: startsWith(github.event.ref, 'refs/tags/v') && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main'
     needs: make_apk_job
     runs-on: ubuntu-latest
     steps:
