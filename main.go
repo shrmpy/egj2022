@@ -9,10 +9,12 @@ import (
 	"image"
 	"image/color"
 	"log"
-
+)
+import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"github.com/shrmpy/egj2022/polarity"
 )
 
 func main() {
@@ -37,6 +39,7 @@ type Game struct {
 	Width  int
 	Height int
 	Player *Player
+	Maze *polarity.Maze
 }
 
 // Layout is hardcoded for now, may be made dynamic in future
