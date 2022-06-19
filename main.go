@@ -27,6 +27,7 @@ func main() {
 		Width:  gameWidth,
 		Height: gameHeight,
 		Player: &Player{image.Pt(gameWidth/2, gameHeight/2)},
+		Maze:   polarity.NewMaze(10),
 	}
 
 	if err := ebiten.RunGame(game); err != nil {
@@ -39,7 +40,7 @@ type Game struct {
 	Width  int
 	Height int
 	Player *Player
-	Maze *polarity.Maze
+	Maze   *polarity.Maze
 }
 
 // Layout is hardcoded for now, may be made dynamic in future
@@ -69,7 +70,10 @@ func (g *Game) Update() error {
 		g.Player.Move()
 	}
 
-	// XXX: Write game logic here
+	if err := g.Maze.Update(); err != nil {
+		// TODO error mgt
+		return err
+	}
 
 	return nil
 }

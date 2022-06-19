@@ -27,7 +27,6 @@ parts:
   g-build:
     plugin: go
     source: .
-
     override-pull: |
         snapcraftctl pull
         version="$(git describe --tags --long)"
@@ -64,5 +63,4 @@ parts:
       - libglib2.0-dev
     stage-packages:
       - libglib2.0-bin
-
 

@@ -54,9 +54,10 @@ Github workflow
  by [Siôn le Roux](https://github.com/sinisterstuf/ebiten-game-template) ([LICENSE](https://github.com/sinisterstuf/ebiten-game-template/blob/main/LICENSE))
 
 Font Renderer
- by [tinne26](https://github.com/tinne26/etxt) ([LICENSE](https://github.com/tinne26/etxt/b
-lob/main/LICENSE))
+ by [tinne26](https://github.com/tinne26/etxt)
+ ([LICENSE](https://github.com/tinne26/etxt/blob/main/LICENSE))
 
-Ebitengine by [Hajime Hoshi](https://github.com/hajimehoshi/ebiten/) ([LICENSE](https://git
-hub.com/hajimehoshi/ebiten/blob/main/LICENSE))
+Ebitengine
+ by [Hajime Hoshi](https://github.com/hajimehoshi/ebiten/)
+ ([LICENSE](https://github.com/hajimehoshi/ebiten/blob/main/LICENSE))
 

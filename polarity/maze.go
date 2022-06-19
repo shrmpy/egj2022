@@ -3,7 +3,8 @@ package polarity
 import (
 	"context"
 	"fmt"
-	"encoding/json"
+	//"encoding/json"
+	"sync"
 	"time"
 )
 import "golang.org/x/sync/errgroup"
@@ -13,37 +14,52 @@ type Maze struct {
 	jobs []Job
 	grid [][]Mask
 }
+
 // *wasm* a user defined script
 type Script interface {
 	Next(state string) string
 }
 type Job struct {
 	script Script
-	state string
+	state  string
 }
 type Ticket struct {
-	move string
+	move  string
 	owner Job
 }
+
+func NewMaze(width int) *Maze {
+	m := &Maze{
+		grid: [][]Mask{},
+	}
+	return m
+}
+
 // to be called by the game lifecycle
 func (m *Maze) Update() error {
-	// TODO
-	// - shuffle order of workers
+	// TODO shuffle order of workers
+	if m.Done() {
+		return fmt.Errorf("Simulation done.")
+	}
 
-	if m.Done() return fmt.Errorf("Simulation done.")
 	acc := make(chan Ticket)
-	cx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer close(acc)
+	cx, cancel := context.WithTimeout(context.Background(), 8000*time.Millisecond)
 	defer cancel()
 	grp, ctx := errgroup.WithContext(cx)
 	for _, j := range m.jobs {
-		spawn(j, acc, grp, ctx)
+		spawn(j, acc, grp, ctx, 2000*time.Millisecond)
 	}
 
-	defer close(acc)
 	if err := grp.Wait(); err != nil {
+		// TODO on timeout, there may be tickets in the acc channel
 		return err
 	}
 	//TODO goroutine? to sync world state and enqueue tickets
+	// all jobs completed, next moves are waiting in the acc channel
+	// so hypothetically need to range acc updating each job state,
+	// requeuing for jobs to be processed next-cycle
+	m.jobs = m.jobs[:0]
 
 	return nil
 }
@@ -58,34 +74,51 @@ func (m *Maze) Done() bool {
 }
 
 // spawn the script runner
-func spawn(j Job, out chan<- Ticket, g *errgroup.Group) {
+func spawn(j Job, out chan<- Ticket, g *errgroup.Group, ctx context.Context, ms time.Duration) {
+	var (
+		once    sync.Once
+		running = false
+		ticker  = time.NewTicker(5 * time.Millisecond)
+	)
 	g.Go(func() error {
+		defer ticker.Stop()
 		select {
-		case <-ctx.Done(): // timeout exceeded
+		case <-ctx.Done():
+			// group cancelled
 			return ctx.Err()
-
-		//case out<- Ticket{owner: j, move: j.script.Next(j.state)}:
-		case req := j.script.Next(j.state):
-			out<- Ticket{owner: j, move: req}
+		case <-ticker.C:
+			if running {
+				return fmt.Errorf("DEBUG job timeout exceeded, %v", j)
+			}
+			once.Do(func() {
+				running = true
+				// attempt wake on timeout
+				ticker = time.NewTicker(ms)
+				// calc next move according to scripted logic
+				req := j.script.Next(j.state)
+				// DEBUG unreachable, for long-running process!
+				out <- Ticket{owner: j, move: req}
+			})
 		}
 		return nil
 	})
 }
 
 type Mask uint16
+
 const (
 	None Mask = 1 << iota
 	Barrier
-	Agent
+	Robot
 	FirstAid
 	Corpse
-	Friend
+	Clone
 	ToggleSwitch
 	NorthPole
 	SouthPole
 	Demagnetized
 )
+
 func (m Mask) Set(flag Mask) Mask { return m | flag }
 func (m Mask) Has(flag Mask) bool { return m&flag != 0 }
 func (m Mask) Not(flag Mask) bool { return m&flag == 0 }
-
