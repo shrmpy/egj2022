@@ -3,7 +3,7 @@ package polarity
 import (
 	"context"
 	"fmt"
-	//"encoding/json"
+	"encoding/json"
 	"sync"
 	"time"
 )
@@ -11,7 +11,7 @@ import "golang.org/x/sync/errgroup"
 
 // maze acts as world state
 type Maze struct {
-	jobs []Job
+	jobs map[string]Job
 	grid [][]Mask
 }
 
@@ -22,6 +22,7 @@ type Script interface {
 type Job struct {
 	script Script
 	state  string
+	name string
 }
 type Ticket struct {
 	move  string
@@ -29,6 +30,8 @@ type Ticket struct {
 }
 
 func NewMaze(wd int) *Maze {
+	// TODO populate the maze (and load robot scripts)
+
 	rows := make([][]Mask, wd)
 	for i := range rows {
 		rows[i] = make([]Mask, wd)
@@ -47,13 +50,15 @@ func (m *Maze) Update() error {
 	}
 
 	acc := make(chan Ticket)
-	next := make([]Job, len(m.jobs))
+	next := make(map[string]Job, len(m.jobs))
 	go func() {
-		var i = 0
 		for t := range acc {
 			nxst := m.eval(t)
-			next[i] = Job{script: t.owner.script, state: nxst}
-			i += 1
+			next[t.owner.name] = Job{
+				script: t.owner.script,
+				name: t.owner.name,
+				state: nxst,
+			}
 		}
 	}()
 
@@ -64,14 +69,21 @@ func (m *Maze) Update() error {
 		spawn(j, acc, grp, ctx, timeSliceMs)
 	}
 	if err := grp.Wait(); err != nil {
+		// TODO not all errors are equal
 		close(acc)
 		return err
 	}
 	// end the for-range
 	close(acc)
 	// enqueue jobs to be processed next-cycle
-	m.jobs = m.jobs[:0]
-	copy(m.jobs, next)
+	//m.jobs = m.jobs[:0]
+	for k := range m.jobs {
+		delete(m.jobs, k)
+	}
+	for k, v :=  range next {
+		m.jobs[k] = v
+		delete(next, k)
+	}
 
 	return nil
 }
@@ -86,11 +98,32 @@ func (m *Maze) Done() bool {
 }
 
 func (m *Maze) eval(t Ticket) string {
-	// TODO resolve move and transition world state
-	return t.owner.state
+	// TODO resolve move and sync world state
+	var move Move
+	if err := json.Unmarshal([]byte(t.move), &move); err != nil {
+		return unresolved(t.owner)
+	}
+	switch move.Command {
+	case "walk": walk(m, t.owner, move.Direction)
+	}
+
+	return unresolved(t.owner)
+}
+func walk(m *Maze, j Job, dir string) {
+	// TODO
+	// - extract xy position
+	// - is direction blocked?
+	// - ifnot then modify position in job's state
+	//   and set grid mask at xy position
+	//   and unset grid mask from old xy position
+}
+func unresolved(j Job) string {
+	// TODO capture error
+	// TODO indicate unsuccessful request
+	return j.state
 }
 
-// spawn the script runner
+// spawn a script runner
 func spawn(j Job, out chan<- Ticket, g *errgroup.Group, ctx context.Context, ms time.Duration) {
 	var (
 		once    sync.Once
@@ -127,6 +160,11 @@ const (
 	groupTurnMs = 5000 * time.Millisecond
 	timeSliceMs = 1000 * time.Millisecond
 )
+
+type Move struct {
+	Command string
+	Direction string
+}
 
 type Mask uint16
 
