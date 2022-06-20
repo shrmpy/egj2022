@@ -28,11 +28,15 @@ type Ticket struct {
 	owner Job
 }
 
-func NewMaze(width int) *Maze {
-	m := &Maze{
-		grid: [][]Mask{},
+func NewMaze(wd int) *Maze {
+	rows := make([][]Mask, wd)
+	for i := range rows {
+		rows[i] = make([]Mask, wd)
 	}
-	return m
+
+	return &Maze{
+		grid: rows,
+	}
 }
 
 // to be called by the game lifecycle
@@ -43,23 +47,31 @@ func (m *Maze) Update() error {
 	}
 
 	acc := make(chan Ticket)
-	defer close(acc)
-	cx, cancel := context.WithTimeout(context.Background(), 8000*time.Millisecond)
+	next := make([]Job, len(m.jobs))
+	go func() {
+		var i = 0
+		for t := range acc {
+			nxst := m.eval(t)
+			next[i] = Job{script: t.owner.script, state: nxst}
+			i += 1
+		}
+	}()
+
+	cx, cancel := context.WithTimeout(context.Background(), groupTurnMs)
 	defer cancel()
 	grp, ctx := errgroup.WithContext(cx)
 	for _, j := range m.jobs {
-		spawn(j, acc, grp, ctx, 2000*time.Millisecond)
+		spawn(j, acc, grp, ctx, timeSliceMs)
 	}
-
 	if err := grp.Wait(); err != nil {
-		// TODO on timeout, there may be tickets in the acc channel
+		close(acc)
 		return err
 	}
-	//TODO goroutine? to sync world state and enqueue tickets
-	// all jobs completed, next moves are waiting in the acc channel
-	// so hypothetically need to range acc updating each job state,
-	// requeuing for jobs to be processed next-cycle
+	// end the for-range
+	close(acc)
+	// enqueue jobs to be processed next-cycle
 	m.jobs = m.jobs[:0]
+	copy(m.jobs, next)
 
 	return nil
 }
@@ -67,10 +79,15 @@ func (m *Maze) Update() error {
 func (m *Maze) Done() bool {
 	// TODO more halt conditions
 	if len(m.jobs) <= 1 {
-		// work queue drained
+		// work queue depleted
 		return true
 	}
 	return false
+}
+
+func (m *Maze) eval(t Ticket) string {
+	// TODO resolve move and transition world state
+	return t.owner.state
 }
 
 // spawn the script runner
@@ -78,7 +95,7 @@ func spawn(j Job, out chan<- Ticket, g *errgroup.Group, ctx context.Context, ms 
 	var (
 		once    sync.Once
 		running = false
-		ticker  = time.NewTicker(5 * time.Millisecond)
+		ticker  = time.NewTicker(1 * time.Millisecond)
 	)
 	g.Go(func() error {
 		defer ticker.Stop()
@@ -87,13 +104,14 @@ func spawn(j Job, out chan<- Ticket, g *errgroup.Group, ctx context.Context, ms 
 			// group cancelled
 			return ctx.Err()
 		case <-ticker.C:
+			ticker.Stop()
 			if running {
 				return fmt.Errorf("DEBUG job timeout exceeded, %v", j)
 			}
 			once.Do(func() {
 				running = true
 				// attempt wake on timeout
-				ticker = time.NewTicker(ms)
+				ticker.Reset(ms)
 				// calc next move according to scripted logic
 				req := j.script.Next(j.state)
 				// DEBUG unreachable, for long-running process!
@@ -103,6 +121,12 @@ func spawn(j Job, out chan<- Ticket, g *errgroup.Group, ctx context.Context, ms 
 		return nil
 	})
 }
+
+const (
+	// theoritical group size of 5
+	groupTurnMs = 5000 * time.Millisecond
+	timeSliceMs = 1000 * time.Millisecond
+)
 
 type Mask uint16
 
