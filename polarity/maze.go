@@ -3,7 +3,6 @@ package polarity
 import (
 	"context"
 	"fmt"
-	"encoding/json"
 	"sync"
 	"time"
 )
@@ -18,11 +17,6 @@ type Maze struct {
 // *wasm* a user defined script
 type Script interface {
 	Next(state string) string
-}
-type Job struct {
-	script Script
-	state  string
-	name string
 }
 type Ticket struct {
 	move  string
@@ -50,15 +44,11 @@ func (m *Maze) Update() error {
 	}
 
 	acc := make(chan Ticket)
-	next := make(map[string]Job, len(m.jobs))
+	next := newJobs(len(m.jobs))
 	go func() {
 		for t := range acc {
-			nxst := m.eval(t)
-			next[t.owner.name] = Job{
-				script: t.owner.script,
-				name: t.owner.name,
-				state: nxst,
-			}
+			inv, fow := m.eval(t)
+			next[t.owner.name] = newJob(t, inv, fow)
 		}
 	}()
 
@@ -75,16 +65,7 @@ func (m *Maze) Update() error {
 	}
 	// end the for-range
 	close(acc)
-	// enqueue jobs to be processed next-cycle
-	//m.jobs = m.jobs[:0]
-	for k := range m.jobs {
-		delete(m.jobs, k)
-	}
-	for k, v :=  range next {
-		m.jobs[k] = v
-		delete(next, k)
-	}
-
+	nextJobs(m, next)
 	return nil
 }
 
@@ -95,32 +76,6 @@ func (m *Maze) Done() bool {
 		return true
 	}
 	return false
-}
-
-func (m *Maze) eval(t Ticket) string {
-	// TODO resolve move and sync world state
-	var move Move
-	if err := json.Unmarshal([]byte(t.move), &move); err != nil {
-		return unresolved(t.owner)
-	}
-	switch move.Command {
-	case "walk": walk(m, t.owner, move.Direction)
-	}
-
-	return unresolved(t.owner)
-}
-func walk(m *Maze, j Job, dir string) {
-	// TODO
-	// - extract xy position
-	// - is direction blocked?
-	// - ifnot then modify position in job's state
-	//   and set grid mask at xy position
-	//   and unset grid mask from old xy position
-}
-func unresolved(j Job) string {
-	// TODO capture error
-	// TODO indicate unsuccessful request
-	return j.state
 }
 
 // spawn a script runner
@@ -146,7 +101,7 @@ func spawn(j Job, out chan<- Ticket, g *errgroup.Group, ctx context.Context, ms 
 				// attempt wake on timeout
 				ticker.Reset(ms)
 				// calc next move according to scripted logic
-				req := j.script.Next(j.state)
+				req := j.script.Next(j.state())
 				// DEBUG unreachable, for long-running process!
 				out <- Ticket{owner: j, move: req}
 			})
@@ -161,15 +116,11 @@ const (
 	timeSliceMs = 1000 * time.Millisecond
 )
 
-type Move struct {
-	Command string
-	Direction string
-}
-
 type Mask uint16
 
 const (
 	None Mask = 1 << iota
+	Self
 	Barrier
 	Robot
 	FirstAid
