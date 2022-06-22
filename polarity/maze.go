@@ -42,15 +42,9 @@ func (m *Maze) Update() error {
 	if m.Done() {
 		return fmt.Errorf("Simulation done.")
 	}
-
 	acc := make(chan Ticket)
-	next := newJobs(len(m.jobs))
-	go func() {
-		for t := range acc {
-			inv, fow := m.eval(t)
-			next[t.owner.name] = newJob(t, inv, fow)
-		}
-	}()
+	next := cleanJobs()
+	go m.listen(next, acc)
 
 	cx, cancel := context.WithTimeout(context.Background(), groupTurnMs)
 	defer cancel()
@@ -78,8 +72,22 @@ func (m *Maze) Done() bool {
 	return false
 }
 
-// spawn a script runner
-func spawn(j Job, out chan<- Ticket, g *errgroup.Group, ctx context.Context, ms time.Duration) {
+// rcv (action) tickets and convert into item on next-job queue
+func (m *Maze) listen(next map[string]Job, inch <-chan Ticket) {
+	// only this thread tries to access 'next' map
+	for t := range inch {
+		delta := m.eval(t)
+		if dead(delta.inv) {
+			// mask grid pos as corpse, no job next-cycle
+			m.grid[delta.y][delta.x].Set(Corpse)
+		} else {
+			next[t.owner.name] = newJob(t, delta)
+		}
+	}
+}
+
+// exec script and returns ticket for next (robot) action
+func spawn(j Job, outch chan<- Ticket, g *errgroup.Group, ctx context.Context, ms time.Duration) {
 	var (
 		once    sync.Once
 		running = false
@@ -103,7 +111,7 @@ func spawn(j Job, out chan<- Ticket, g *errgroup.Group, ctx context.Context, ms 
 				// calc next move according to scripted logic
 				req := j.script.Next(j.state())
 				// DEBUG unreachable, for long-running process!
-				out <- Ticket{owner: j, move: req}
+				outch <- Ticket{owner: j, move: req}
 			})
 		}
 		return nil

@@ -7,6 +7,7 @@ type Job struct {
 	inventory map[Kit]int
 	fow       [][]Mask
 	name      string
+	x, y      int
 }
 
 func (j *Job) state() string {
@@ -15,22 +16,25 @@ func (j *Job) state() string {
 }
 
 // reset to empty job queue
-func newJobs(sz int) map[string]Job {
-	return make(map[string]Job, sz)
+func cleanJobs() map[string]Job {
+	return make(map[string]Job)
 }
 
 // new job instance
-func newJob(t Ticket, i map[Kit]int, fow [][]Mask) Job {
+func newJob(t Ticket, d Delta) Job {
 	return Job{
 		script:    t.owner.script,
 		name:      t.owner.name,
-		inventory: i,
-		fow:       fow,
+		inventory: d.inv,
+		fow:       d.fow,
+		x:         t.owner.x,
+		y:         t.owner.y,
 	}
 }
 
 // post-process job queue
 func nextJobs(m *Maze, next map[string]Job) {
+	// only maze.Update modifies the jobs map here
 	// enqueue jobs to be processed next-cycle
 	// (m.jobs = m.jobs[:0])
 	for k := range m.jobs {
