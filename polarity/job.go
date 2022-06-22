@@ -5,13 +5,13 @@ package polarity
 type Job struct {
 	script    Script
 	inventory map[Kit]int
-	fow       [][]Mask
+	fog       [][]Mask
 	name      string
-	x, y      int
+	row, col  int
 }
 
 func (j *Job) state() string {
-	// serialize for passing across interfaces
+	// marshal/serialize for passing across interfaces
 	return ""
 }
 
@@ -26,9 +26,9 @@ func newJob(t Ticket, d Delta) Job {
 		script:    t.owner.script,
 		name:      t.owner.name,
 		inventory: d.inv,
-		fow:       d.fow,
-		x:         t.owner.x,
-		y:         t.owner.y,
+		fog:       d.fog,
+		row:       t.owner.row,
+		col:       t.owner.col,
 	}
 }
 

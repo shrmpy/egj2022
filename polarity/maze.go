@@ -10,8 +10,9 @@ import "golang.org/x/sync/errgroup"
 
 // maze acts as world state
 type Maze struct {
-	jobs map[string]Job
-	grid [][]Mask
+	jobs  map[string]Job
+	grid  [][]Mask
+	width int
 }
 
 // *wasm* a user defined script
@@ -27,12 +28,13 @@ func NewMaze(wd int) *Maze {
 	// TODO populate the maze (and load robot scripts)
 
 	rows := make([][]Mask, wd)
-	for i := range rows {
-		rows[i] = make([]Mask, wd)
+	for r := range rows {
+		rows[r] = make([]Mask, wd)
 	}
 
 	return &Maze{
-		grid: rows,
+		grid:  rows,
+		width: wd,
 	}
 }
 
@@ -79,7 +81,7 @@ func (m *Maze) listen(next map[string]Job, inch <-chan Ticket) {
 		delta := m.eval(t)
 		if dead(delta.inv) {
 			// mask grid pos as corpse, no job next-cycle
-			m.grid[delta.y][delta.x].Set(Corpse)
+			m.grid[delta.row][delta.col].Set(Corpse)
 		} else {
 			next[t.owner.name] = newJob(t, delta)
 		}
