@@ -3,6 +3,7 @@ package polarity
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"sync"
 	"time"
 )
@@ -11,7 +12,7 @@ import "golang.org/x/sync/errgroup"
 // maze acts as world state
 type Maze struct {
 	jobs  map[string]Job
-	grid  [][]Mask
+	grid  Grid
 	width int
 }
 
@@ -26,14 +27,16 @@ type Ticket struct {
 
 func NewMaze(wd int) *Maze {
 	// TODO populate the maze (and load robot scripts)
-
-	rows := make([][]Mask, wd)
-	for r := range rows {
-		rows[r] = make([]Mask, wd)
-	}
+	rand.Seed(time.Now().UnixNano())
+	row := rand.Intn(wd)
+	col := rand.Intn(wd)
+	bot := newRobot(row, col, wd, "Bacon")
+	grid := NewGrid(wd)
+	grid.Robot(bot)
 
 	return &Maze{
-		grid:  rows,
+		grid:  grid,
+		jobs:  map[string]Job{bot.name: bot},
 		width: wd,
 	}
 }
@@ -74,17 +77,16 @@ func (m *Maze) Done() bool {
 	return false
 }
 
-// rcv (action) tickets and convert into item on next-job queue
+// rcv (action) tickets and prepare as next-queue job
 func (m *Maze) listen(next map[string]Job, inch <-chan Ticket) {
+	// TODO _Lock_ maze map/slice, atm only this thread commits writes
 	// only this thread tries to access 'next' map
 	for t := range inch {
 		delta := m.eval(t)
 		if dead(delta.inv) {
-			// mask grid pos as corpse, no job next-cycle
-			m.grid[delta.row][delta.col].Set(Corpse)
-		} else {
-			next[t.owner.name] = newJob(t, delta)
+			continue
 		}
+		next[t.owner.name] = newJob(t, delta)
 	}
 }
 
@@ -125,23 +127,3 @@ const (
 	groupTurnMs = 5000 * time.Millisecond
 	timeSliceMs = 1000 * time.Millisecond
 )
-
-type Mask uint16
-
-const (
-	None Mask = 1 << iota
-	Self
-	Barrier
-	Robot
-	FirstAid
-	Corpse
-	Clone
-	ToggleSwitch
-	NorthPole
-	SouthPole
-	Demagnetized
-)
-
-func (m Mask) Set(flag Mask) Mask { return m | flag }
-func (m Mask) Has(flag Mask) bool { return m&flag != 0 }
-func (m Mask) Not(flag Mask) bool { return m&flag == 0 }

@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 )
 
+// evaluate (robot) script and construct the outcome (inventory,fog)
 func (m *Maze) eval(t Ticket) Delta {
 	if dead(t.owner.inventory) {
-		return deltaCorpse(t.owner)
+		return m.death(t.owner)
 	}
 	// The ticket.move field is user input and must be checked.
 	var move Move
@@ -20,11 +21,9 @@ func (m *Maze) eval(t Ticket) Delta {
 
 	return unresolved(t.owner)
 }
+
+// change position in the specified direction
 func (m *Maze) walk(j Job, dir string) Delta {
-	// TODO
-	// - ifnot then modify position in job's state
-	//   and set grid mask at xy position
-	//   and unset grid mask from old xy position
 	row, col := j.row, j.col
 	switch dir {
 	case "n", "north":
@@ -45,6 +44,7 @@ func (m *Maze) walk(j Job, dir string) Delta {
 		}
 	}
 	if blocked(row, col, m.grid) {
+		// position unchanged
 		return Delta{
 			inv: j.inventory,
 			fog: j.fog,
@@ -53,13 +53,34 @@ func (m *Maze) walk(j Job, dir string) Delta {
 		}
 	}
 
-	//TODO sync fog mask
-	return Delta{
+	d := Delta{
 		inv: j.inventory,
-		fog: j.fog,
 		row: row,
 		col: col,
 	}
+	// mask position in maze
+	m.grid.Walk(j, d)
+	// sync fog cells with position
+	var fog Grid
+	fog = j.fog //todo copy
+	fog.WalkMe(j, d)
+	d.fog = fog
+
+	return d
+}
+
+// job was killed
+func (m *Maze) death(j Job) Delta {
+	inv := make(map[Kit]int)
+	inv[Battery] = -8
+	delta := Delta{
+		inv: inv,
+		row: j.row,
+		col: j.col,
+	}
+	// mask grid pos as corpse
+	m.grid.Corpse(j, delta)
+	return delta
 }
 func unresolved(j Job) Delta {
 	// TODO capture error
@@ -71,7 +92,10 @@ func unresolved(j Job) Delta {
 		col: j.col,
 	}
 }
-func blocked(row, col int, grid [][]Mask) bool {
+
+// check if the destination is blocked
+func blocked(row, col int, grid Grid) bool {
+	// TODO prevented walking into walls by calculation, but double-check
 	cell := grid[row][col]
 	if cell.Has(Barrier) || cell.Has(Robot) {
 		return true
@@ -93,7 +117,7 @@ type Move struct {
 // job fields outcome from transition
 type Delta struct {
 	inv      map[Kit]int
-	fog      [][]Mask
+	fog      Grid
 	row, col int
 }
 

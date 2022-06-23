@@ -32,11 +32,42 @@ func newJob(t Ticket, d Delta) Job {
 	}
 }
 
-// post-process job queue
+// initial robot instance
+func newRobot(row, col, wd int, name string) Job {
+	j := Job{
+		script:    TestScript{},
+		name:      name,
+		inventory: newInventory(),
+		row:       row,
+		col:       col,
+	}
+	fog := NewGrid(wd)
+	fog.RobotMe(j)
+	j.fog = fog
+	return j
+}
+func newInventory() map[Kit]int {
+	m := make(map[Kit]int)
+	m[Battery] = 10
+	m[Build] = 5000
+	m[Phaser] = 5000
+	m[Scanner] = 5000
+	return m
+}
+
+// TODO load wasm script
+type TestScript struct{}
+
+func (s TestScript) Next(state string) string {
+	return `{"walk": "north"}`
+}
+
+// job queue post-processing step
 func nextJobs(m *Maze, next map[string]Job) {
+	// TODO _Lock_ maze map/slice, atm we are called in Update (not child thread)
 	// only maze.Update modifies the jobs map here
 	// enqueue jobs to be processed next-cycle
-	// (m.jobs = m.jobs[:0])
+
 	for k := range m.jobs {
 		delete(m.jobs, k)
 	}
