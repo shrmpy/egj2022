@@ -53,3 +53,15 @@ egj2022
 Github workflow
  by [Siôn le Roux](https://github.com/sinisterstuf/ebiten-game-template) ([LICENSE](https://github.com/sinisterstuf/ebiten-game-template/blob/main/LICENSE))
 
+Font Renderer
+ by [tinne26](https://github.com/tinne26/etxt)
+ ([LICENSE](https://github.com/tinne26/etxt/blob/main/LICENSE))
+
+Ebitengine
+ by [Hajime Hoshi](https://github.com/hajimehoshi/ebiten/)
+ ([LICENSE](https://github.com/hajimehoshi/ebiten/blob/main/LICENSE))
+
+DejaVu Sans Mono
+ by [DejaVu](https://dejavu-fonts.github.io/)
+ ([LICENSE](https://github.com/dejavu-fonts/dejavu-fonts/blob/master/LICENSE))
+

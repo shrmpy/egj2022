@@ -1,5 +1,8 @@
 name: egj2022
 base: core20
+license: MIT
+website: https://shrmpy.itch.io/egj2002/
+source-code: https://github.com/shrmpy/egj2022/
 summary: Ebitengine Game Jam entry 
 description: |
   This is in development. It is for the Ebitengine Game Jam 2022's magnet theme.
@@ -24,7 +27,6 @@ parts:
   g-build:
     plugin: go
     source: .
-
     override-pull: |
         snapcraftctl pull
         version="$(git describe --tags --long)"
@@ -61,5 +63,4 @@ parts:
       - libglib2.0-dev
     stage-packages:
       - libglib2.0-bin
-
 
