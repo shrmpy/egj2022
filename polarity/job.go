@@ -5,7 +5,7 @@ package polarity
 type Job struct {
 	script    Script
 	inventory map[Kit]int
-	fog       [][]Mask
+	fog       Minimap
 	name      string
 	row, col  int
 }
@@ -32,7 +32,7 @@ func newJob(t Ticket, d Delta) Job {
 	}
 }
 
-// initial robot instance
+// initial robot instance (todo parameterize/setter script)
 func newRobot(row, col, wd int, name string) Job {
 	j := Job{
 		script:    TestScript{},
@@ -41,7 +41,7 @@ func newRobot(row, col, wd int, name string) Job {
 		row:       row,
 		col:       col,
 	}
-	fog := NewGrid(wd)
+	fog := NewMinimap(wd)
 	fog.RobotMe(j)
 	j.fog = fog
 	return j
@@ -59,6 +59,7 @@ func newInventory() map[Kit]int {
 type TestScript struct{}
 
 func (s TestScript) Next(state string) string {
+	// TODO json.Unmarshal(state, &job)
 	return `{"walk": "north"}`
 }
 

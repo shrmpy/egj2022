@@ -12,8 +12,10 @@ import "golang.org/x/sync/errgroup"
 // maze acts as world state
 type Maze struct {
 	jobs  map[string]Job
-	grid  Grid
+	mini  Minimap
 	width int
+	turn  int
+	log   func(string)
 }
 
 // *wasm* a user defined script
@@ -25,27 +27,37 @@ type Ticket struct {
 	owner Job
 }
 
-func NewMaze(wd int) *Maze {
+func NewMaze(wd int, f func(string)) *Maze {
 	// TODO populate the maze (and load robot scripts)
 	rand.Seed(time.Now().UnixNano())
-	row := rand.Intn(wd)
-	col := rand.Intn(wd)
-	bot := newRobot(row, col, wd, "Bacon")
-	grid := NewGrid(wd)
-	grid.Robot(bot)
+	var row, col int
+	row, col = rollRowCol(wd)
+	botA := newRobot(row, col, wd, "Avocado")
+	row, col = rollRowCol(wd)
+	botB := newRobot(row, col, wd, "Bacon")
+	mm := NewMinimap(wd)
+	mm.Robot(botA)
+	mm.Robot(botB)
+	wq := map[string]Job{
+		botA.name: botA,
+		botB.name: botB,
+	}
 
 	return &Maze{
-		grid:  grid,
-		jobs:  map[string]Job{bot.name: bot},
 		width: wd,
+		mini:  mm,
+		jobs:  wq,
+		log:   f,
 	}
 }
 
 // to be called by the game lifecycle
 func (m *Maze) Update() error {
+	m.turn++
 	// TODO shuffle order of workers
-	if m.Done() {
-		return fmt.Errorf("Simulation done.")
+	if err := m.Done(); err != nil {
+		m.log(fmt.Sprintf("DEBUG turn %d, %s", m.turn, err.Error()))
+		return err
 	}
 	acc := make(chan Ticket)
 	next := cleanJobs()
@@ -55,7 +67,7 @@ func (m *Maze) Update() error {
 	defer cancel()
 	grp, ctx := errgroup.WithContext(cx)
 	for _, j := range m.jobs {
-		spawn(j, acc, grp, ctx, timeSliceMs)
+		spawn(j, acc, grp, ctx)
 	}
 	if err := grp.Wait(); err != nil {
 		// TODO not all errors are equal
@@ -68,13 +80,24 @@ func (m *Maze) Update() error {
 	return nil
 }
 
-func (m *Maze) Done() bool {
+func (m *Maze) Done() error {
 	// TODO more halt conditions
-	if len(m.jobs) <= 1 {
-		// work queue depleted
-		return true
+	if len(m.jobs) > 1 {
+		return nil
 	}
-	return false
+	// 1 survivor
+	return fmt.Errorf("DEBUG last survivor, %d", len(m.jobs))
+}
+
+// used by game draw step
+func (m *Maze) Mini() Minimap {
+	// read-only "cache"
+	return m.mini.Copy()
+}
+
+// used by game draw step
+func (m *Maze) Width() float32 {
+	return float32(m.width)
 }
 
 // rcv (action) tickets and prepare as next-queue job
@@ -84,18 +107,20 @@ func (m *Maze) listen(next map[string]Job, inch <-chan Ticket) {
 	for t := range inch {
 		delta := m.eval(t)
 		if dead(delta.inv) {
+			m.log(fmt.Sprintf("DEBUG %s deceased, (%d, %d) %v", t.owner.name, t.owner.row, t.owner.col, t.move))
 			continue
 		}
+		m.log(fmt.Sprintf("DEBUG next added, %s", t.owner.name))
 		next[t.owner.name] = newJob(t, delta)
 	}
 }
 
 // exec script and returns ticket for next (robot) action
-func spawn(j Job, outch chan<- Ticket, g *errgroup.Group, ctx context.Context, ms time.Duration) {
+func spawn(j Job, outch chan<- Ticket, g *errgroup.Group, ctx context.Context) {
 	var (
 		once    sync.Once
 		running = false
-		ticker  = time.NewTicker(1 * time.Millisecond)
+		ticker  = time.NewTicker(timeSliceMs)
 	)
 	g.Go(func() error {
 		defer ticker.Stop()
@@ -108,10 +133,11 @@ func spawn(j Job, outch chan<- Ticket, g *errgroup.Group, ctx context.Context, m
 			if running {
 				return fmt.Errorf("DEBUG job timeout exceeded, %v", j)
 			}
+			// attempt wake on timeout
+			ticker.Reset(timeSliceMs)
+		default:
 			once.Do(func() {
 				running = true
-				// attempt wake on timeout
-				ticker.Reset(ms)
 				// calc next move according to scripted logic
 				req := j.script.Next(j.state())
 				// DEBUG unreachable, for long-running process!
@@ -120,6 +146,13 @@ func spawn(j Job, outch chan<- Ticket, g *errgroup.Group, ctx context.Context, m
 		}
 		return nil
 	})
+}
+
+func rollRowCol(wd int) (int, int) {
+	// TODO version that doesn't overlap
+	row := rand.Intn(wd)
+	col := rand.Intn(wd)
+	return row, col
 }
 
 const (

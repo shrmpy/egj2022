@@ -61,3 +61,7 @@ Ebitengine
  by [Hajime Hoshi](https://github.com/hajimehoshi/ebiten/)
  ([LICENSE](https://github.com/hajimehoshi/ebiten/blob/main/LICENSE))
 
+DejaVu Sans Mono
+ by [DejaVu](https://dejavu-fonts.github.io/)
+ ([LICENSE](https://github.com/dejavu-fonts/dejavu-fonts/blob/master/LICENSE))
+

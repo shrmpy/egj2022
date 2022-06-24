@@ -7,7 +7,7 @@ import (
 // evaluate (robot) script and construct the outcome (inventory,fog)
 func (m *Maze) eval(t Ticket) Delta {
 	if dead(t.owner.inventory) {
-		return m.death(t.owner)
+		return m.retire(t.owner)
 	}
 	// The ticket.move field is user input and must be checked.
 	var move Move
@@ -43,7 +43,7 @@ func (m *Maze) walk(j Job, dir string) Delta {
 			col--
 		}
 	}
-	if blocked(row, col, m.grid) {
+	if blocked(row, col, m.mini) {
 		// position unchanged
 		return Delta{
 			inv: j.inventory,
@@ -59,9 +59,9 @@ func (m *Maze) walk(j Job, dir string) Delta {
 		col: col,
 	}
 	// mask position in maze
-	m.grid.Walk(j, d)
+	m.mini.Walk(j, d)
 	// sync fog cells with position
-	var fog Grid
+	var fog Minimap
 	fog = j.fog //todo copy
 	fog.WalkMe(j, d)
 	d.fog = fog
@@ -69,8 +69,8 @@ func (m *Maze) walk(j Job, dir string) Delta {
 	return d
 }
 
-// job was killed
-func (m *Maze) death(j Job) Delta {
+// robot-job is deceased
+func (m *Maze) retire(j Job) Delta {
 	inv := make(map[Kit]int)
 	inv[Battery] = -8
 	delta := Delta{
@@ -78,8 +78,8 @@ func (m *Maze) death(j Job) Delta {
 		row: j.row,
 		col: j.col,
 	}
-	// mask grid pos as corpse
-	m.grid.Corpse(j, delta)
+	// mask mini pos as corpse
+	m.mini.Corpse(j, delta)
 	return delta
 }
 func unresolved(j Job) Delta {
@@ -94,9 +94,9 @@ func unresolved(j Job) Delta {
 }
 
 // check if the destination is blocked
-func blocked(row, col int, grid Grid) bool {
+func blocked(row, col int, mm Minimap) bool {
 	// TODO prevented walking into walls by calculation, but double-check
-	cell := grid[row][col]
+	cell := mm[row][col]
 	if cell.Has(Barrier) || cell.Has(Robot) {
 		return true
 	}
@@ -117,17 +117,6 @@ type Move struct {
 // job fields outcome from transition
 type Delta struct {
 	inv      map[Kit]int
-	fog      Grid
+	fog      Minimap
 	row, col int
-}
-
-// delta for corpse (dead robot)
-func deltaCorpse(j Job) Delta {
-	inv := make(map[Kit]int)
-	inv[Battery] = -8
-	return Delta{
-		inv: inv,
-		row: j.row,
-		col: j.col,
-	}
 }
