@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 )
 
-// evaluate (robot) script and construct the outcome (inventory,fog)
+// evaluate (jaeger) script and construct the outcome (inventory,fog)
 func (m *Maze) eval(t Ticket) Delta {
-	if dead(t.owner.inventory) {
-		return m.retire(t.owner)
+	if grounded(t.owner.inventory) {
+		return m.junk(t.owner)
 	}
 	// The ticket.move field is user input and must be checked.
 	var move Move
@@ -69,8 +69,8 @@ func (m *Maze) walk(j Job, dir string) Delta {
 	return d
 }
 
-// robot-job is deceased
-func (m *Maze) retire(j Job) Delta {
+// jaeger is junk
+func (m *Maze) junk(j Job) Delta {
 	inv := make(map[Kit]int)
 	inv[Battery] = -8
 	delta := Delta{
@@ -78,8 +78,8 @@ func (m *Maze) retire(j Job) Delta {
 		row: j.row,
 		col: j.col,
 	}
-	// mask mini pos as corpse
-	m.mini.Corpse(j, delta)
+	// mask mini pos as junk
+	m.mini.Junk(j, delta)
 	return delta
 }
 func unresolved(j Job) Delta {
@@ -97,14 +97,14 @@ func unresolved(j Job) Delta {
 func blocked(row, col int, mm Minimap) bool {
 	// TODO prevented walking into walls by calculation, but double-check
 	cell := mm[row][col]
-	if cell.Has(Barrier) || cell.Has(Robot) {
+	if cell.Has(Barrier) || cell.Has(Jaeger) {
 		return true
 	}
 	return false
 }
 
-// empty battery means death
-func dead(inv map[Kit]int) bool {
+// empty battery means incapacitated
+func grounded(inv map[Kit]int) bool {
 	return inv[Battery] <= 0
 }
 

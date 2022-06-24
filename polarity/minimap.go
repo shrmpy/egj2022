@@ -1,7 +1,7 @@
 package polarity
 
 // minimap of row x col maze
-// (2 scopes - maze and robot because bots have fog-of-war)
+// (2 scopes - maze and jaeger because mechs have fog-of-war)
 type Minimap [][]Mask
 
 func NewMinimap(wd int) Minimap {
@@ -13,18 +13,18 @@ func NewMinimap(wd int) Minimap {
 	return rows
 }
 
-func (m Minimap) Corpse(j Job, d Delta) {
-	m.Change(Robot, Corpse, j.row, j.col, d.row, d.col)
+func (m Minimap) Junk(j Job, d Delta) {
+	m.Change(Jaeger, Junk, j.row, j.col, d.row, d.col)
 }
 
-// walk from robot (/self) pov
+// walk from jaeger (/self) pov
 func (m Minimap) WalkMe(j Job, d Delta) {
 	m.Change(Self, Self, j.row, j.col, d.row, d.col)
 }
 
 // walk changes position in maze
 func (m Minimap) Walk(j Job, d Delta) {
-	m.Change(Robot, Robot, j.row, j.col, d.row, d.col)
+	m.Change(Jaeger, Jaeger, j.row, j.col, d.row, d.col)
 }
 
 func (m Minimap) Change(oldm, newm Mask, oldrow, oldcol, row, col int) {
@@ -37,13 +37,13 @@ func (m Minimap) Change(oldm, newm Mask, oldrow, oldcol, row, col int) {
 }
 
 // initial placement
-func (m Minimap) Robot(j Job) {
-	newc := m[j.row][j.col].Set(Robot)
+func (m Minimap) Jaeger(j Job) {
+	newc := m[j.row][j.col].Set(Jaeger)
 	m[j.row][j.col] = newc
 }
 
-// initial placement from robot pov
-func (m Minimap) RobotMe(j Job) {
+// initial placement from jaeger pov
+func (m Minimap) JaegerMe(j Job) {
 	newc := m[j.row][j.col].Set(Self)
 	m[j.row][j.col] = newc
 }
@@ -64,12 +64,12 @@ type Mask uint16
 
 const (
 	None Mask = 1 << iota
-	Self
 	Barrier
-	Robot
-	FirstAid
-	Corpse
+	Jaeger
+	Junk
 	Clone
+	Self
+	Fusion
 	ToggleSwitch
 	NorthPole
 	SouthPole

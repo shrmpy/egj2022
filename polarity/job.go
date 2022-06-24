@@ -32,8 +32,8 @@ func newJob(t Ticket, d Delta) Job {
 	}
 }
 
-// initial robot instance (todo parameterize/setter script)
-func newRobot(row, col, wd int, name string) Job {
+// initial jaeger instance (todo parameterize/setter script)
+func newJaeger(row, col, wd int, name string) Job {
 	j := Job{
 		script:    TestScript{},
 		name:      name,
@@ -42,7 +42,7 @@ func newRobot(row, col, wd int, name string) Job {
 		col:       col,
 	}
 	fog := NewMinimap(wd)
-	fog.RobotMe(j)
+	fog.JaegerMe(j)
 	j.fog = fog
 	return j
 }
@@ -50,7 +50,7 @@ func newInventory() map[Kit]int {
 	m := make(map[Kit]int)
 	m[Battery] = 10
 	m[Build] = 5000
-	m[Phaser] = 5000
+	m[Cannon] = 5000
 	m[Scanner] = 5000
 	return m
 }
@@ -83,7 +83,7 @@ type Kit uint8
 
 const (
 	Battery Kit = iota
-	Phaser
+	Cannon
 	Build
 	Scanner
 )

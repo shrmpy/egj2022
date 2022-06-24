@@ -42,7 +42,7 @@ cd egj2022
 # make snap 
 snapcraft
 # local install
-sudo snap install egj2022_0.0.1_arm64.snap --dangerous
+sudo snap install egj2022_0.0.2_arm64.snap --dangerous
 # start program
 egj2022
 ```

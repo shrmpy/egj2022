@@ -28,19 +28,19 @@ type Ticket struct {
 }
 
 func NewMaze(wd int, f func(string)) *Maze {
-	// TODO populate the maze (and load robot scripts)
+	// TODO populate the maze (and load jaeger scripts)
 	rand.Seed(time.Now().UnixNano())
 	var row, col int
 	row, col = rollRowCol(wd)
-	botA := newRobot(row, col, wd, "Avocado")
+	mechA := newJaeger(row, col, wd, "Gypsy")
 	row, col = rollRowCol(wd)
-	botB := newRobot(row, col, wd, "Bacon")
+	mechB := newJaeger(row, col, wd, "Cherno")
 	mm := NewMinimap(wd)
-	mm.Robot(botA)
-	mm.Robot(botB)
+	mm.Jaeger(mechA)
+	mm.Jaeger(mechB)
 	wq := map[string]Job{
-		botA.name: botA,
-		botB.name: botB,
+		mechA.name: mechA,
+		mechB.name: mechB,
 	}
 
 	return &Maze{
@@ -106,16 +106,16 @@ func (m *Maze) listen(next map[string]Job, inch <-chan Ticket) {
 	// only this thread tries to access 'next' map
 	for t := range inch {
 		delta := m.eval(t)
-		if dead(delta.inv) {
-			m.log(fmt.Sprintf("DEBUG %s deceased, (%d, %d) %v", t.owner.name, t.owner.row, t.owner.col, t.move))
+		if grounded(delta.inv) {
+			m.log(fmt.Sprintf("DEBUG junk, %s (%d, %d) %v", t.owner.name, t.owner.row, t.owner.col, t.move))
 			continue
 		}
-		m.log(fmt.Sprintf("DEBUG next added, %s", t.owner.name))
+		m.log(fmt.Sprintf("DEBUG next, %s %v", t.owner.name, t.move))
 		next[t.owner.name] = newJob(t, delta)
 	}
 }
 
-// exec script and returns ticket for next (robot) action
+// exec script and returns ticket for next (jaeger) action
 func spawn(j Job, outch chan<- Ticket, g *errgroup.Group, ctx context.Context) {
 	var (
 		once    sync.Once

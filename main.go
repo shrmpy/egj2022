@@ -33,9 +33,8 @@ func main() {
 		fonts  = etxt.NewFontLibrary()
 	)
 	defer close(ch)
-	name, err = fonts.ParseFontBytes(dejavuSansMonoTTF)
-	if err != nil {
-		log.Fatalf("FAIL Parse error DejaVu Sans Mono, %v", err.Error())
+	if name, err = fonts.ParseFontBytes(dejavuSansMonoTTF); err != nil {
+		log.Fatalf("FAIL Parse error DejaVu Sans Mono, %s", err.Error())
 	}
 	log.Printf("INFO font %s", name)
 	var renderer = etxt.NewStdRenderer()
@@ -49,14 +48,13 @@ func main() {
 		info:   ch,
 		Width:  wd,
 		Height: ht,
-		//maze:   polarity.NewMaze(20, game.Log),
-		txtre: renderer,
-		log:   make([]string, 0, 25),
+		txtre:  renderer,
+		log:    make([]string, 0, 25),
 	}
 	game.maze = polarity.NewMaze(20, game.LogDebug)
 
 	if err = ebiten.RunGame(game); err != nil {
-		log.Fatal(err)
+		log.Fatalf("FAIL shutdown, %v", err)
 	}
 }
 
@@ -74,6 +72,7 @@ func (g *Game) Update() error {
 	}
 
 	if g.trouble {
+		// troubleshooting, don't exit
 		return nil
 	}
 	if err := g.maze.Update(); err != nil {
@@ -105,7 +104,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			switch {
 			case cell.Has(polarity.Barrier):
 				rgb = color.RGBA{0x4b, 0x00, 0x82, 0xff}
-			case cell.Has(polarity.Robot):
+			case cell.Has(polarity.Jaeger):
 				rgb = color.RGBA{0xad, 0xff, 0x2f, 0xff}
 			default:
 				rgb = color.RGBA{0x33, 0x33, 0x33, 0xff}
