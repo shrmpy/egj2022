@@ -1,6 +1,6 @@
 package polarity
 
-//import "fmt"
+import "fmt"
 
 type Job struct {
 	script    Script
@@ -13,6 +13,15 @@ type Job struct {
 func (j *Job) state() string {
 	// marshal/serialize for passing across interfaces
 	return ""
+}
+
+// values for debug print
+func (j *Job) String() string {
+	return fmt.Sprintf("%s: b%d (c%d, r%d)",
+		j.name,
+		j.inventory[Battery],
+		j.col, j.row,
+	)
 }
 
 // reset to empty job queue
@@ -60,7 +69,7 @@ type TestScript struct{}
 
 func (s TestScript) Next(state string) string {
 	// TODO json.Unmarshal(state, &job)
-	return `{"walk": "north"}`
+	return `{"command":"walk", "direction": "north"}`
 }
 
 // job queue post-processing step

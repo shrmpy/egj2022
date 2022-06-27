@@ -23,6 +23,7 @@ var emptyImage = ebiten.NewImage(3, 3)
 func init() {
 	// todo is fill for alpha lvl here?
 	emptyImage.Fill(color.White)
+	log.SetFlags(log.Lshortfile | log.Ltime)
 }
 func main() {
 	var (
@@ -41,17 +42,17 @@ func main() {
 	renderer.SetCacheHandler(etxt.NewDefaultCache(2 * 1024 * 1024).NewHandler())
 	renderer.SetFont(fonts.GetFont("DejaVu Sans Mono"))
 	renderer.SetColor(color.White)
-	renderer.SetSizePx(18)
+	renderer.SetSizePx(12)
 	ebiten.SetWindowSize(wd, ht)
 	ebiten.SetWindowTitle("egj2022")
 	var game = &Game{
-		info:   ch,
-		Width:  wd,
-		Height: ht,
-		txtre:  renderer,
-		log:    make([]string, 0, 25),
+		info:    ch,
+		Width:   wd,
+		Height:  ht,
+		txtre:   renderer,
+		history: make([]string, 0, 25),
 	}
-	game.maze = polarity.NewMaze(20, game.LogDebug)
+	game.maze = polarity.NewMaze(20, game.AddHistory)
 
 	if err = ebiten.RunGame(game); err != nil {
 		log.Fatalf("FAIL shutdown, %v", err)
@@ -120,17 +121,17 @@ func (g *Game) Draw(screen *ebiten.Image) {
 func (g *Game) printDebugLog(screen *ebiten.Image) {
 	// help us troubleshoot
 	g.txtre.SetTarget(screen)
-	max := len(g.log)
+	max := len(g.history)
 	select {
 	case dl := <-g.info:
 		// TODO scroll messages
 		if max < 25 {
-			g.log = append(g.log, fmt.Sprintf("DEBUG: %s", dl))
+			g.history = append(g.history, fmt.Sprintf("DEBUG: %s", dl))
 		}
 	default:
 		g.txtre.SetAlign(etxt.Bottom, etxt.Left)
 		for i := max; i > 0; i-- {
-			msg := g.log[i-1]
+			msg := g.history[i-1]
 			sz := g.txtre.SelectionRect(msg)
 			g.txtre.Draw(msg, 0, g.Height-sz.Height.Ceil()*i)
 		}
@@ -147,7 +148,7 @@ type Game struct {
 	info    chan string
 	maze    *polarity.Maze
 	txtre   *etxt.Renderer
-	log     []string
+	history []string
 	trouble bool
 }
 
@@ -157,6 +158,6 @@ func (g *Game) Layout(outsideWidth int, outsideHeight int) (int, int) {
 }
 
 // allow maze to bubble-up debug msg
-func (g *Game) LogDebug(msg string) {
+func (g *Game) AddHistory(msg string) {
 	g.info <- msg
 }

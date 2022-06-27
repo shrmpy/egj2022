@@ -1,6 +1,7 @@
 package polarity
 
 import (
+	//"fmt"
 	"encoding/json"
 )
 
@@ -17,6 +18,8 @@ func (m *Maze) eval(t Ticket) Delta {
 	switch move.Command {
 	case "walk":
 		return m.walk(t.owner, move.Direction)
+	default:
+		m.hist("DEBUG exceptional move, " + move.Command)
 	}
 
 	return unresolved(t.owner)
@@ -44,6 +47,7 @@ func (m *Maze) walk(j Job, dir string) Delta {
 		}
 	}
 	if blocked(row, col, m.mini) {
+		////m.hist(fmt.Sprintf("DEBUG blocked, %s (r%d, c%d) ", j.name, row, col))
 		// position unchanged
 		return Delta{
 			inv: j.inventory,

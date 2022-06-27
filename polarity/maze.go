@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"strings"
 	"sync"
 	"time"
 )
@@ -15,7 +16,7 @@ type Maze struct {
 	mini  Minimap
 	width int
 	turn  int
-	log   func(string)
+	hist  func(string)
 }
 
 // *wasm* a user defined script
@@ -27,7 +28,7 @@ type Ticket struct {
 	owner Job
 }
 
-func NewMaze(wd int, f func(string)) *Maze {
+func NewMaze(wd int, fn func(string)) *Maze {
 	// TODO populate the maze (and load jaeger scripts)
 	rand.Seed(time.Now().UnixNano())
 	var row, col int
@@ -47,7 +48,7 @@ func NewMaze(wd int, f func(string)) *Maze {
 		width: wd,
 		mini:  mm,
 		jobs:  wq,
-		log:   f,
+		hist:  fn,
 	}
 }
 
@@ -56,7 +57,7 @@ func (m *Maze) Update() error {
 	m.turn++
 	// TODO shuffle order of workers
 	if err := m.Done(); err != nil {
-		m.log(fmt.Sprintf("DEBUG turn %d, %s", m.turn, err.Error()))
+		m.hist(fmt.Sprintf("DEBUG turn %d, %s", m.turn, err.Error()))
 		return err
 	}
 	acc := make(chan Ticket)
@@ -85,8 +86,7 @@ func (m *Maze) Done() error {
 	if len(m.jobs) > 1 {
 		return nil
 	}
-	// 1 survivor
-	return fmt.Errorf("DEBUG last survivor, %d", len(m.jobs))
+	return fmt.Errorf("INFO survivor, %s", m.String())
 }
 
 // used by game draw step
@@ -100,6 +100,15 @@ func (m *Maze) Width() float32 {
 	return float32(m.width)
 }
 
+// debug print
+func (m *Maze) String() string {
+	var bld strings.Builder
+	for _, v := range m.jobs {
+		bld.WriteString(v.String())
+	}
+	return bld.String()
+}
+
 // rcv (action) tickets and prepare as next-queue job
 func (m *Maze) listen(next map[string]Job, inch <-chan Ticket) {
 	// TODO _Lock_ maze map/slice, atm only this thread commits writes
@@ -107,10 +116,10 @@ func (m *Maze) listen(next map[string]Job, inch <-chan Ticket) {
 	for t := range inch {
 		delta := m.eval(t)
 		if grounded(delta.inv) {
-			m.log(fmt.Sprintf("DEBUG junk, %s (%d, %d) %v", t.owner.name, t.owner.row, t.owner.col, t.move))
+			m.hist(fmt.Sprintf("DEBUG junk, %s (%d, %d) %v", t.owner.name, t.owner.row, t.owner.col, t.move))
 			continue
 		}
-		m.log(fmt.Sprintf("DEBUG next, %s %v", t.owner.name, t.move))
+		m.hist(fmt.Sprintf("DEBUG next, %s %v", t.owner.name, t.move))
 		next[t.owner.name] = newJob(t, delta)
 	}
 }
