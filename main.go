@@ -15,6 +15,8 @@ import (
 	"github.com/tinne26/etxt"
 )
 
+//go:generate cp $GOROOT/misc/wasm/wasm_exec.js dist/web/wasm_exec.js
+//go:generate env GOOS=js GOARCH=wasm go build -ldflags "-w -s" -o dist/web/egj2022.wasm ./
 //go:embed DejaVuSansMono.ttf
 var dejavuSansMonoTTF []byte
 
@@ -46,7 +48,6 @@ func main() {
 	ebiten.SetWindowSize(wd, ht)
 	ebiten.SetWindowTitle("egj2022")
 	var game = &Game{
-		info:    ch,
 		Width:   wd,
 		Height:  ht,
 		txtre:   renderer,
@@ -72,15 +73,10 @@ func (g *Game) Update() error {
 		ebiten.SetFullscreen(!fs)
 	}
 
-	if g.trouble {
-		// troubleshooting, don't exit
-		return nil
-	}
 	if err := g.maze.Update(); err != nil {
 		// TODO error mgt
-		log.Printf("DEBUG maze end, %v", err.Error())
-		g.trouble = true
-		//return err
+		log.Printf("DEBUG maze end, %s", err.Error())
+		return err
 	}
 
 	return nil
@@ -122,34 +118,25 @@ func (g *Game) printDebugLog(screen *ebiten.Image) {
 	// help us troubleshoot
 	g.txtre.SetTarget(screen)
 	max := len(g.history)
-	select {
-	case dl := <-g.info:
-		// TODO scroll messages
-		if max < 25 {
-			g.history = append(g.history, fmt.Sprintf("DEBUG: %s", dl))
-		}
-	default:
-		g.txtre.SetAlign(etxt.Bottom, etxt.Left)
-		for i := max; i > 0; i-- {
-			msg := g.history[i-1]
-			sz := g.txtre.SelectionRect(msg)
-			g.txtre.Draw(msg, 0, g.Height-sz.Height.Ceil()*i)
-		}
-		// print frame rate in se corner
-		g.txtre.SetAlign(etxt.Bottom, etxt.Right)
-		g.txtre.Draw(fmt.Sprintf("TPS: %0.2f", ebiten.CurrentTPS()), g.Width-1, g.Height)
+
+	g.txtre.SetAlign(etxt.Bottom, etxt.Left)
+	for i := max; i > 0; i-- {
+		msg := g.history[i-1]
+		sz := g.txtre.SelectionRect(msg)
+		g.txtre.Draw(msg, 0, g.Height-sz.Height.Ceil()*i)
 	}
+	// print frame rate in se corner
+	g.txtre.SetAlign(etxt.Bottom, etxt.Right)
+	g.txtre.Draw(fmt.Sprintf("TPS: %0.2f", ebiten.CurrentTPS()), g.Width-1, g.Height)
 }
 
 // Game represents the main game state
 type Game struct {
 	Width   int
 	Height  int
-	info    chan string
 	maze    *polarity.Maze
 	txtre   *etxt.Renderer
 	history []string
-	trouble bool
 }
 
 // Layout is static for now, can be dynamic
@@ -158,6 +145,9 @@ func (g *Game) Layout(outsideWidth int, outsideHeight int) (int, int) {
 }
 
 // allow maze to bubble-up debug msg
-func (g *Game) AddHistory(msg string) {
-	g.info <- msg
+func (g *Game) AddHistory(tmp string, values ...any) {
+	var msg = fmt.Sprintf(tmp, values...)
+	if len(g.history) < 25 {
+		g.history = append(g.history, msg)
+	}
 }

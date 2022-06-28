@@ -12,11 +12,11 @@ import "golang.org/x/sync/errgroup"
 
 // maze acts as world state
 type Maze struct {
-	jobs  map[string]Job
+	jobs  []Job
 	mini  Minimap
 	width int
 	turn  int
-	hist  func(string)
+	hist  func(string, ...any)
 }
 
 // *wasm* a user defined script
@@ -28,7 +28,7 @@ type Ticket struct {
 	owner Job
 }
 
-func NewMaze(wd int, fn func(string)) *Maze {
+func NewMaze(wd int, fn func(t string, v ...any)) *Maze {
 	// TODO populate the maze (and load jaeger scripts)
 	rand.Seed(time.Now().UnixNano())
 	var row, col int
@@ -39,9 +39,9 @@ func NewMaze(wd int, fn func(string)) *Maze {
 	mm := NewMinimap(wd)
 	mm.Jaeger(mechA)
 	mm.Jaeger(mechB)
-	wq := map[string]Job{
-		mechA.name: mechA,
-		mechB.name: mechB,
+	wq := []Job{
+		mechA,
+		mechB,
 	}
 
 	return &Maze{
@@ -55,15 +55,13 @@ func NewMaze(wd int, fn func(string)) *Maze {
 // to be called by the game lifecycle
 func (m *Maze) Update() error {
 	m.turn++
+	sz := len(m.jobs)
 	// TODO shuffle order of workers
 	if err := m.Done(); err != nil {
-		m.hist(fmt.Sprintf("DEBUG turn %d, %s", m.turn, err.Error()))
 		return err
 	}
-	acc := make(chan Ticket)
-	next := cleanJobs()
-	go m.listen(next, acc)
-
+	acc := make(chan Ticket, sz)
+	defer close(acc)
 	cx, cancel := context.WithTimeout(context.Background(), groupTurnMs)
 	defer cancel()
 	grp, ctx := errgroup.WithContext(cx)
@@ -72,12 +70,11 @@ func (m *Maze) Update() error {
 	}
 	if err := grp.Wait(); err != nil {
 		// TODO not all errors are equal
-		close(acc)
+		m.hist("DEBUG wait, %s", err.Error())
 		return err
 	}
-	// end the for-range
-	close(acc)
-	nextJobs(m, next)
+	next := m.listen(sz, acc)
+	copy(m.jobs, next)
 	return nil
 }
 
@@ -110,18 +107,22 @@ func (m *Maze) String() string {
 }
 
 // rcv (action) tickets and prepare as next-queue job
-func (m *Maze) listen(next map[string]Job, inch <-chan Ticket) {
+func (m *Maze) listen(expect int, inch <-chan Ticket) []Job {
 	// TODO _Lock_ maze map/slice, atm only this thread commits writes
-	// only this thread tries to access 'next' map
-	for t := range inch {
+	next := make([]Job, 0, expect)
+
+	for i := 0; i < expect; i++ {
+		t := <-inch
 		delta := m.eval(t)
+
 		if grounded(delta.inv) {
-			m.hist(fmt.Sprintf("DEBUG junk, %s (%d, %d) %v", t.owner.name, t.owner.row, t.owner.col, t.move))
+			m.hist("DEBUG junk, %s", t.owner.name)
 			continue
 		}
-		m.hist(fmt.Sprintf("DEBUG next, %s %v", t.owner.name, t.move))
-		next[t.owner.name] = newJob(t, delta)
+
+		next = append(next, newJob(t, delta))
 	}
+	return next
 }
 
 // exec script and returns ticket for next (jaeger) action

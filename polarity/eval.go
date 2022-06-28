@@ -1,13 +1,15 @@
 package polarity
 
 import (
-	//"fmt"
 	"encoding/json"
+	"fmt"
 )
 
 // evaluate (jaeger) script and construct the outcome (inventory,fog)
+// this is called by the listen goroutine and should be the only
+// thread in order to be safe when modifying the maps
 func (m *Maze) eval(t Ticket) Delta {
-	if grounded(t.owner.inventory) {
+	if grounded(t.owner.inv) {
 		return m.junk(t.owner)
 	}
 	// The ticket.move field is user input and must be checked.
@@ -19,7 +21,7 @@ func (m *Maze) eval(t Ticket) Delta {
 	case "walk":
 		return m.walk(t.owner, move.Direction)
 	default:
-		m.hist("DEBUG exceptional move, " + move.Command)
+		m.hist("DEBUG exceptional move, %s", move.Command)
 	}
 
 	return unresolved(t.owner)
@@ -27,55 +29,34 @@ func (m *Maze) eval(t Ticket) Delta {
 
 // change position in the specified direction
 func (m *Maze) walk(j Job, dir string) Delta {
-	row, col := j.row, j.col
-	switch dir {
-	case "n", "north":
-		if row > 0 {
-			row--
-		}
-	case "s", "south":
-		if row < (m.width - 1) {
-			row++
-		}
-	case "e", "east":
-		if col < (m.width - 1) {
-			col++
-		}
-	case "w", "west":
-		if col > 0 {
-			col--
-		}
+	row, col, err := posFrom(j.row, j.col, dir, m.width)
+	if err != nil {
+		m.hist("DEBUG %s", err.Error())
+		return unresolved(j)
 	}
 	if blocked(row, col, m.mini) {
-		////m.hist(fmt.Sprintf("DEBUG blocked, %s (r%d, c%d) ", j.name, row, col))
-		// position unchanged
-		return Delta{
-			inv: j.inventory,
-			fog: j.fog,
-			row: j.row,
-			col: j.col,
-		}
+		m.hist("DEBUG blocked, %s (r%d, c%d) ", j.name, row, col)
+		return unresolved(j)
 	}
 
 	d := Delta{
-		inv: j.inventory,
 		row: row,
 		col: col,
 	}
 	// mask position in maze
 	m.mini.Walk(j, d)
+
+	d.inv = j.inv.Copy()
 	// sync fog cells with position
-	var fog Minimap
-	fog = j.fog //todo copy
-	fog.WalkMe(j, d)
-	d.fog = fog
+	d.fog = j.fog.Copy()
+	d.fog.WalkMe(j, d)
 
 	return d
 }
 
 // jaeger is junk
 func (m *Maze) junk(j Job) Delta {
-	inv := make(map[Kit]int)
+	inv := newInv()
 	inv[Battery] = -8
 	delta := Delta{
 		inv: inv,
@@ -87,11 +68,9 @@ func (m *Maze) junk(j Job) Delta {
 	return delta
 }
 func unresolved(j Job) Delta {
-	// TODO capture error
-	// TODO indicate unsuccessful request
 	return Delta{
-		inv: j.inventory,
-		fog: j.fog,
+		inv: j.inv.Copy(),
+		fog: j.fog.Copy(),
 		row: j.row,
 		col: j.col,
 	}
@@ -99,7 +78,6 @@ func unresolved(j Job) Delta {
 
 // check if the destination is blocked
 func blocked(row, col int, mm Minimap) bool {
-	// TODO prevented walking into walls by calculation, but double-check
 	cell := mm[row][col]
 	if cell.Has(Barrier) || cell.Has(Jaeger) {
 		return true
@@ -108,8 +86,49 @@ func blocked(row, col int, mm Minimap) bool {
 }
 
 // empty battery means incapacitated
-func grounded(inv map[Kit]int) bool {
-	return inv[Battery] <= 0
+func grounded(i Inventory) bool {
+	return i[Battery] <= 0
+}
+func posFrom(row, col int, dir string, wd int) (int, int, error) {
+	switch dir {
+	case "n", "north":
+		return northFrom(row, col)
+	case "s", "south":
+		return southFrom(row, col, wd)
+	case "e", "east":
+		return eastFrom(row, col, wd)
+	case "w", "west":
+		return westFrom(row, col)
+	}
+	return 0, 0, fmt.Errorf("FAIL direction, unknown")
+}
+func northFrom(row, col int) (int, int, error) {
+	r := row - 1
+	if r < 0 {
+		return row, col, fmt.Errorf("north maze boundary")
+	}
+	return r, col, nil
+}
+func southFrom(row, col, wd int) (int, int, error) {
+	r := row + 1
+	if r >= wd {
+		return row, col, fmt.Errorf("south maze boundary")
+	}
+	return r, col, nil
+}
+func eastFrom(row, col, wd int) (int, int, error) {
+	c := col + 1
+	if c >= wd {
+		return row, col, fmt.Errorf("east maze boundary")
+	}
+	return row, c, nil
+}
+func westFrom(row, col int) (int, int, error) {
+	c := col - 1
+	if c < 0 {
+		return row, col, fmt.Errorf("west maze boundary")
+	}
+	return row, c, nil
 }
 
 // move request data from the ticket JSON
@@ -120,7 +139,7 @@ type Move struct {
 
 // job fields outcome from transition
 type Delta struct {
-	inv      map[Kit]int
+	inv      Inventory
 	fog      Minimap
 	row, col int
 }

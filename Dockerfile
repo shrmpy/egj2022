@@ -7,7 +7,7 @@ RUN apt update && apt install -y --no-install-recommends \
 
 WORKDIR /app
 COPY . .
-RUN go get github.com/hajimehoshi/ebiten/v2
-RUN go get github.com/tinne26/etxt
+##RUN go get github.com/hajimehoshi/ebiten/v2
+##RUN go get github.com/tinne26/etxt
 
 

@@ -48,7 +48,7 @@ func (m Minimap) JaegerMe(j Job) {
 	m[j.row][j.col] = newc
 }
 
-// TODO slice copy and nil to avoid losing orphans from pass by reference
+// try copy and nil to avoid losing orphans from pass by reference
 func (m Minimap) Copy() Minimap {
 	// assume square (wd = ht)
 	wd := len(m)
