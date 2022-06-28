@@ -98,9 +98,9 @@ jobs:
         retention-days: 1
 
   build-web:
-    name: Build Web assembly
     needs: tests
     runs-on: ubuntu-latest
+    name: Build Web assembly
     steps:
     - uses: actions/checkout@v3
     - name: Set up Go
@@ -109,10 +109,7 @@ jobs:
         go-version: '>=1.18.0'
     - name: Build wasm
       shell: bash
-      run: GOOS=js GOARCH=wasm go build -v -ldflags "-w -s" -o dist/web/${{ env.PUB_GAME }}.wasm
-    - name: Copy WASM exec script
-      shell: bash
-      run: cp $(go env GOROOT)/misc/wasm/wasm_exec.js dist/web/.
+      run: GOOS=js GOARCH=wasm go generate
     - name: Upload wasm
       uses: actions/upload-artifact@v3
       with:
@@ -185,11 +182,10 @@ jobs:
         VERSION: ${{github.ref_name}}
 
   pub-web:
-    name: Pub Web build to itch.io
-    if: startsWith(github.event.ref, 'refs/tags/v') && github.ref == 'refs/heads/main'
-
     needs: build-web
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    name: Pub itch.io web channel
     steps:
     - uses: actions/download-artifact@v3
       with:

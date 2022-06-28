@@ -15,6 +15,8 @@ import (
 	"github.com/tinne26/etxt"
 )
 
+//go:generate cp $GOROOT/misc/wasm/wasm_exec.js dist/web/wasm_exec.js
+//go:generate env GOOS=js GOARCH=wasm go build -ldflags "-w -s" -o dist/web/egj2022.wasm ./
 //go:embed DejaVuSansMono.ttf
 var dejavuSansMonoTTF []byte
 
@@ -23,6 +25,7 @@ var emptyImage = ebiten.NewImage(3, 3)
 func init() {
 	// todo is fill for alpha lvl here?
 	emptyImage.Fill(color.White)
+	log.SetFlags(log.Lshortfile | log.Ltime)
 }
 func main() {
 	var (
@@ -33,30 +36,27 @@ func main() {
 		fonts  = etxt.NewFontLibrary()
 	)
 	defer close(ch)
-	name, err = fonts.ParseFontBytes(dejavuSansMonoTTF)
-	if err != nil {
-		log.Fatalf("FAIL Parse error DejaVu Sans Mono, %v", err.Error())
+	if name, err = fonts.ParseFontBytes(dejavuSansMonoTTF); err != nil {
+		log.Fatalf("FAIL Parse error DejaVu Sans Mono, %s", err.Error())
 	}
 	log.Printf("INFO font %s", name)
 	var renderer = etxt.NewStdRenderer()
 	renderer.SetCacheHandler(etxt.NewDefaultCache(2 * 1024 * 1024).NewHandler())
 	renderer.SetFont(fonts.GetFont("DejaVu Sans Mono"))
 	renderer.SetColor(color.White)
-	renderer.SetSizePx(18)
+	renderer.SetSizePx(12)
 	ebiten.SetWindowSize(wd, ht)
 	ebiten.SetWindowTitle("egj2022")
 	var game = &Game{
-		info:   ch,
-		Width:  wd,
-		Height: ht,
-		//maze:   polarity.NewMaze(20, game.Log),
-		txtre: renderer,
-		log:   make([]string, 0, 25),
+		Width:   wd,
+		Height:  ht,
+		txtre:   renderer,
+		history: make([]string, 0, 25),
 	}
-	game.maze = polarity.NewMaze(20, game.LogDebug)
+	game.maze = polarity.NewMaze(20, game.AddHistory)
 
 	if err = ebiten.RunGame(game); err != nil {
-		log.Fatal(err)
+		log.Fatalf("FAIL shutdown, %v", err)
 	}
 }
 
@@ -73,14 +73,10 @@ func (g *Game) Update() error {
 		ebiten.SetFullscreen(!fs)
 	}
 
-	if g.trouble {
-		return nil
-	}
 	if err := g.maze.Update(); err != nil {
 		// TODO error mgt
-		log.Printf("DEBUG maze end, %v", err.Error())
-		g.trouble = true
-		//return err
+		log.Printf("DEBUG maze end, %s", err.Error())
+		return err
 	}
 
 	return nil
@@ -105,7 +101,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			switch {
 			case cell.Has(polarity.Barrier):
 				rgb = color.RGBA{0x4b, 0x00, 0x82, 0xff}
-			case cell.Has(polarity.Robot):
+			case cell.Has(polarity.Jaeger):
 				rgb = color.RGBA{0xad, 0xff, 0x2f, 0xff}
 			default:
 				rgb = color.RGBA{0x33, 0x33, 0x33, 0xff}
@@ -121,35 +117,26 @@ func (g *Game) Draw(screen *ebiten.Image) {
 func (g *Game) printDebugLog(screen *ebiten.Image) {
 	// help us troubleshoot
 	g.txtre.SetTarget(screen)
-	max := len(g.log)
-	select {
-	case dl := <-g.info:
-		// TODO scroll messages
-		if max < 25 {
-			g.log = append(g.log, fmt.Sprintf("DEBUG: %s", dl))
-		}
-	default:
-		g.txtre.SetAlign(etxt.Bottom, etxt.Left)
-		for i := max; i > 0; i-- {
-			msg := g.log[i-1]
-			sz := g.txtre.SelectionRect(msg)
-			g.txtre.Draw(msg, 0, g.Height-sz.Height.Ceil()*i)
-		}
-		// print frame rate in se corner
-		g.txtre.SetAlign(etxt.Bottom, etxt.Right)
-		g.txtre.Draw(fmt.Sprintf("TPS: %0.2f", ebiten.CurrentTPS()), g.Width-1, g.Height)
+	max := len(g.history)
+
+	g.txtre.SetAlign(etxt.Bottom, etxt.Left)
+	for i := max; i > 0; i-- {
+		msg := g.history[i-1]
+		sz := g.txtre.SelectionRect(msg)
+		g.txtre.Draw(msg, 0, g.Height-sz.Height.Ceil()*i)
 	}
+	// print frame rate in se corner
+	g.txtre.SetAlign(etxt.Bottom, etxt.Right)
+	g.txtre.Draw(fmt.Sprintf("TPS: %0.2f", ebiten.CurrentTPS()), g.Width-1, g.Height)
 }
 
 // Game represents the main game state
 type Game struct {
 	Width   int
 	Height  int
-	info    chan string
 	maze    *polarity.Maze
 	txtre   *etxt.Renderer
-	log     []string
-	trouble bool
+	history []string
 }
 
 // Layout is static for now, can be dynamic
@@ -158,6 +145,9 @@ func (g *Game) Layout(outsideWidth int, outsideHeight int) (int, int) {
 }
 
 // allow maze to bubble-up debug msg
-func (g *Game) LogDebug(msg string) {
-	g.info <- msg
+func (g *Game) AddHistory(tmp string, values ...any) {
+	var msg = fmt.Sprintf(tmp, values...)
+	if len(g.history) < 25 {
+		g.history = append(g.history, msg)
+	}
 }

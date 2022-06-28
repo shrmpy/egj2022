@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"strings"
 	"sync"
 	"time"
 )
@@ -11,11 +12,11 @@ import "golang.org/x/sync/errgroup"
 
 // maze acts as world state
 type Maze struct {
-	jobs  map[string]Job
+	jobs  []Job
 	mini  Minimap
 	width int
 	turn  int
-	log   func(string)
+	hist  func(string, ...any)
 }
 
 // *wasm* a user defined script
@@ -27,42 +28,40 @@ type Ticket struct {
 	owner Job
 }
 
-func NewMaze(wd int, f func(string)) *Maze {
-	// TODO populate the maze (and load robot scripts)
+func NewMaze(wd int, fn func(t string, v ...any)) *Maze {
+	// TODO populate the maze (and load jaeger scripts)
 	rand.Seed(time.Now().UnixNano())
 	var row, col int
 	row, col = rollRowCol(wd)
-	botA := newRobot(row, col, wd, "Avocado")
+	mechA := newJaeger(row, col, wd, "Gypsy")
 	row, col = rollRowCol(wd)
-	botB := newRobot(row, col, wd, "Bacon")
+	mechB := newJaeger(row, col, wd, "Cherno")
 	mm := NewMinimap(wd)
-	mm.Robot(botA)
-	mm.Robot(botB)
-	wq := map[string]Job{
-		botA.name: botA,
-		botB.name: botB,
+	mm.Jaeger(mechA)
+	mm.Jaeger(mechB)
+	wq := []Job{
+		mechA,
+		mechB,
 	}
 
 	return &Maze{
 		width: wd,
 		mini:  mm,
 		jobs:  wq,
-		log:   f,
+		hist:  fn,
 	}
 }
 
 // to be called by the game lifecycle
 func (m *Maze) Update() error {
 	m.turn++
+	sz := len(m.jobs)
 	// TODO shuffle order of workers
 	if err := m.Done(); err != nil {
-		m.log(fmt.Sprintf("DEBUG turn %d, %s", m.turn, err.Error()))
 		return err
 	}
-	acc := make(chan Ticket)
-	next := cleanJobs()
-	go m.listen(next, acc)
-
+	acc := make(chan Ticket, sz)
+	defer close(acc)
 	cx, cancel := context.WithTimeout(context.Background(), groupTurnMs)
 	defer cancel()
 	grp, ctx := errgroup.WithContext(cx)
@@ -71,12 +70,11 @@ func (m *Maze) Update() error {
 	}
 	if err := grp.Wait(); err != nil {
 		// TODO not all errors are equal
-		close(acc)
+		m.hist("DEBUG wait, %s", err.Error())
 		return err
 	}
-	// end the for-range
-	close(acc)
-	nextJobs(m, next)
+	next := m.listen(sz, acc)
+	copy(m.jobs, next)
 	return nil
 }
 
@@ -85,8 +83,7 @@ func (m *Maze) Done() error {
 	if len(m.jobs) > 1 {
 		return nil
 	}
-	// 1 survivor
-	return fmt.Errorf("DEBUG last survivor, %d", len(m.jobs))
+	return fmt.Errorf("INFO survivor, %s", m.String())
 }
 
 // used by game draw step
@@ -100,22 +97,35 @@ func (m *Maze) Width() float32 {
 	return float32(m.width)
 }
 
-// rcv (action) tickets and prepare as next-queue job
-func (m *Maze) listen(next map[string]Job, inch <-chan Ticket) {
-	// TODO _Lock_ maze map/slice, atm only this thread commits writes
-	// only this thread tries to access 'next' map
-	for t := range inch {
-		delta := m.eval(t)
-		if dead(delta.inv) {
-			m.log(fmt.Sprintf("DEBUG %s deceased, (%d, %d) %v", t.owner.name, t.owner.row, t.owner.col, t.move))
-			continue
-		}
-		m.log(fmt.Sprintf("DEBUG next added, %s", t.owner.name))
-		next[t.owner.name] = newJob(t, delta)
+// debug print
+func (m *Maze) String() string {
+	var bld strings.Builder
+	for _, v := range m.jobs {
+		bld.WriteString(v.String())
 	}
+	return bld.String()
 }
 
-// exec script and returns ticket for next (robot) action
+// rcv (action) tickets and prepare as next-queue job
+func (m *Maze) listen(expect int, inch <-chan Ticket) []Job {
+	// TODO _Lock_ maze map/slice, atm only this thread commits writes
+	next := make([]Job, 0, expect)
+
+	for i := 0; i < expect; i++ {
+		t := <-inch
+		delta := m.eval(t)
+
+		if grounded(delta.inv) {
+			m.hist("DEBUG junk, %s", t.owner.name)
+			continue
+		}
+
+		next = append(next, newJob(t, delta))
+	}
+	return next
+}
+
+// exec script and returns ticket for next (jaeger) action
 func spawn(j Job, outch chan<- Ticket, g *errgroup.Group, ctx context.Context) {
 	var (
 		once    sync.Once
