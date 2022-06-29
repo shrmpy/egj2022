@@ -75,6 +75,7 @@ func (m *Maze) ping(j Job, dir string) Delta {
 			cell := m.mini[j.row][i-1]
 			if cell.Has(Barrier | Junk | Jaeger | Fusion | ToggleSwitch) {
 				fog[j.row][i-1].Set(cell)
+				lc = i
 				break
 			}
 		}
@@ -87,7 +88,6 @@ func (m *Maze) ping(j Job, dir string) Delta {
 		kv:  kv,
 	}
 	// add animation to maze
-	////m.mini.Ping(j, d)
 	m.loop(Ping, j.row, j.col, lr, lc)
 	return d
 }

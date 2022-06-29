@@ -52,9 +52,9 @@ func main() {
 		Height:  ht,
 		txtre:   renderer,
 		history: make([]string, 0, 25),
-		loops:   newLoops(20),
 	}
 	game.maze = polarity.NewMaze(20, game.AddHistory, game.AddLoop)
+	game.loops = newLoops(int(game.maze.Width()))
 
 	if err = ebiten.RunGame(game); err != nil {
 		log.Fatalf("FAIL main, %s", err.Error())
@@ -139,7 +139,8 @@ func (g *Game) printHistory(screen *ebiten.Image) {
 
 // increment animation loop frame
 func (g *Game) advanceLoop() {
-	var lnext = newLoops(20)
+	var sz = int(g.maze.Width())
+	var lnext = newLoops(sz)
 	for row, rslc := range g.loops {
 		for col, cell := range rslc {
 			//calc path axis and increment/decr
@@ -152,7 +153,7 @@ func (g *Game) advanceLoop() {
 					// dest is west
 					var nc = lpath{item: cell.item, row: cell.row, col: cell.col}
 					lnext[row][col-1] = nc
-				} else if cell.col > col && (col < g.Width-1) {
+				} else if cell.col > col && (col < sz-1) {
 					// dest is east
 					var nc = lpath{item: cell.item, row: cell.row, col: cell.col}
 					lnext[row][col+1] = nc
