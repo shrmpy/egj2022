@@ -27,6 +27,11 @@ func (m Minimap) Walk(j Job, d Delta) {
 	m.Change(Jaeger, Jaeger, j.row, j.col, d.row, d.col)
 }
 
+// ping animation
+func (m Minimap) Ping(j Job, d Delta) {
+	m.Change(Ping, Ping, j.row, j.col, d.row, d.col)
+}
+
 func (m Minimap) Change(oldm, newm Mask, oldrow, oldcol, row, col int) {
 	// apply new mask
 	newc := m[row][col].Set(newm)
@@ -64,6 +69,7 @@ type Mask uint16
 
 const (
 	None Mask = 1 << iota
+	Ping
 	Barrier
 	Jaeger
 	Junk

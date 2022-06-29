@@ -17,6 +17,7 @@ type Maze struct {
 	width int
 	turn  int
 	hist  func(string, ...any)
+	loop  func(i Mask, or, oc, r, c int)
 }
 
 // *wasm* a user defined script
@@ -28,7 +29,7 @@ type Ticket struct {
 	owner Job
 }
 
-func NewMaze(wd int, fn func(t string, v ...any)) *Maze {
+func NewMaze(wd int, fn func(t string, v ...any), al func(i Mask, or, oc, r, c int)) *Maze {
 	// TODO populate the maze (and load jaeger scripts)
 	rand.Seed(time.Now().UnixNano())
 	var row, col int
@@ -49,6 +50,7 @@ func NewMaze(wd int, fn func(t string, v ...any)) *Maze {
 		mini:  mm,
 		jobs:  wq,
 		hist:  fn,
+		loop:  al,
 	}
 }
 
@@ -106,9 +108,8 @@ func (m *Maze) String() string {
 	return bld.String()
 }
 
-// rcv (action) tickets and prepare as next-queue job
+// rcv (action) tickets and prepare as next-queue
 func (m *Maze) listen(expect int, inch <-chan Ticket) []Job {
-	// TODO _Lock_ maze map/slice, atm only this thread commits writes
 	next := make([]Job, 0, expect)
 
 	for i := 0; i < expect; i++ {

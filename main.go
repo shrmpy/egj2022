@@ -2,7 +2,7 @@ package main
 
 import (
 	_ "embed"
-	"errors"
+
 	"fmt"
 	"image"
 	"image/color"
@@ -37,9 +37,9 @@ func main() {
 	)
 	defer close(ch)
 	if name, err = fonts.ParseFontBytes(dejavuSansMonoTTF); err != nil {
-		log.Fatalf("FAIL Parse error DejaVu Sans Mono, %s", err.Error())
+		log.Fatalf("FAIL Parse DejaVu Sans Mono, %s", err.Error())
 	}
-	log.Printf("INFO font %s", name)
+	log.Printf("INFO font, %s", name)
 	var renderer = etxt.NewStdRenderer()
 	renderer.SetCacheHandler(etxt.NewDefaultCache(2 * 1024 * 1024).NewHandler())
 	renderer.SetFont(fonts.GetFont("DejaVu Sans Mono"))
@@ -52,11 +52,12 @@ func main() {
 		Height:  ht,
 		txtre:   renderer,
 		history: make([]string, 0, 25),
+		loops:   newLoops(20),
 	}
-	game.maze = polarity.NewMaze(20, game.AddHistory)
+	game.maze = polarity.NewMaze(20, game.AddHistory, game.AddLoop)
 
 	if err = ebiten.RunGame(game); err != nil {
-		log.Fatalf("FAIL shutdown, %v", err)
+		log.Fatalf("FAIL main, %s", err.Error())
 	}
 }
 
@@ -64,7 +65,7 @@ func main() {
 func (g *Game) Update() error {
 	// Pressing Q any time quits immediately
 	if ebiten.IsKeyPressed(ebiten.KeyQ) {
-		return errors.New("game quit by player")
+		return fmt.Errorf("INFO Quit key")
 	}
 
 	// Pressing F toggles full-screen
@@ -84,7 +85,7 @@ func (g *Game) Update() error {
 
 // Draw renders one frame
 func (g *Game) Draw(screen *ebiten.Image) {
-	g.printDebugLog(screen)
+	g.printHistory(screen)
 	var (
 		rgb     color.RGBA
 		v       []ebiten.Vertex
@@ -99,12 +100,17 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	for row, rslc := range mm {
 		for col, cell := range rslc {
 			switch {
+
 			case cell.Has(polarity.Barrier):
 				rgb = color.RGBA{0x4b, 0x00, 0x82, 0xff}
 			case cell.Has(polarity.Jaeger):
 				rgb = color.RGBA{0xad, 0xff, 0x2f, 0xff}
 			default:
 				rgb = color.RGBA{0x33, 0x33, 0x33, 0xff}
+				var loop = g.loops[row][col]
+				if loop.item.Has(polarity.Ping) {
+					rgb = color.RGBA{0x96, 0xcc, 0xff, 0xff}
+				}
 			}
 			x = float32(col)*cpx + padLeft
 			y = float32(row) * cpx
@@ -112,9 +118,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			screen.DrawTriangles(v, i, src, nil)
 		}
 	}
+	g.advanceLoop()
 }
 
-func (g *Game) printDebugLog(screen *ebiten.Image) {
+func (g *Game) printHistory(screen *ebiten.Image) {
 	// help us troubleshoot
 	g.txtre.SetTarget(screen)
 	max := len(g.history)
@@ -130,6 +137,34 @@ func (g *Game) printDebugLog(screen *ebiten.Image) {
 	g.txtre.Draw(fmt.Sprintf("TPS: %0.2f", ebiten.CurrentTPS()), g.Width-1, g.Height)
 }
 
+// increment animation loop frame
+func (g *Game) advanceLoop() {
+	var lnext = newLoops(20)
+	for row, rslc := range g.loops {
+		for col, cell := range rslc {
+			//calc path axis and increment/decr
+			if cell.item == polarity.None {
+				continue
+			}
+			if row == cell.row {
+				// animation path is horiz axis
+				if cell.col < col && col > 0 {
+					// dest is west
+					var nc = lpath{item: cell.item, row: cell.row, col: cell.col}
+					lnext[row][col-1] = nc
+				} else if cell.col > col && (col < g.Width-1) {
+					// dest is east
+					var nc = lpath{item: cell.item, row: cell.row, col: cell.col}
+					lnext[row][col+1] = nc
+				}
+			}
+			// clear old animation "frame"
+			g.loops[row][col] = lpath{}
+		}
+	}
+	g.loops = lnext
+}
+
 // Game represents the main game state
 type Game struct {
 	Width   int
@@ -137,6 +172,13 @@ type Game struct {
 	maze    *polarity.Maze
 	txtre   *etxt.Renderer
 	history []string
+	loops   [][]lpath
+}
+
+// animation loop path
+type lpath struct {
+	item     polarity.Mask
+	row, col int
 }
 
 // Layout is static for now, can be dynamic
@@ -150,4 +192,21 @@ func (g *Game) AddHistory(tmp string, values ...any) {
 	if len(g.history) < 25 {
 		g.history = append(g.history, msg)
 	}
+}
+
+// (animation) loop for maze
+func (g *Game) AddLoop(el polarity.Mask, oldr, oldc, row, col int) {
+	// draw along path once started
+	var l = lpath{item: el, row: row, col: col}
+	g.loops[oldr][oldc] = l
+}
+
+// instance of row x col
+func newLoops(wd int) [][]lpath {
+	var rows = make([][]lpath, wd)
+	for k := range rows {
+		rows[k] = make([]lpath, wd)
+	}
+
+	return rows
 }
