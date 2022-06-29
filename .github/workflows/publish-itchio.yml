@@ -120,10 +120,10 @@ jobs:
           LICENSE
 
   pub-win:
-    name: Pub PC build to itch.io
-    if: startsWith(github.event.ref, 'refs/tags/v') && github.ref == 'refs/heads/main'
     needs: build-win
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    name: Pub PC build to itch.io
     steps:
     - uses: actions/download-artifact@v3
       with:
@@ -138,11 +138,10 @@ jobs:
         VERSION: ${{github.ref_name}}
 
   pub-mac:
-    name: Pub OSX build to itch.io
-    if: startsWith(github.event.ref, 'refs/tags/v') && github.ref == 'refs/heads/main'
-
     needs: build-mac
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    name: Pub OSX build to itch.io
     steps:
     - uses: actions/download-artifact@v3
       with:
@@ -160,11 +159,10 @@ jobs:
         VERSION: ${{github.ref_name}}
 
   pub-lin:
-    name: Pub Linux build to itch.io
-    if: startsWith(github.event.ref, 'refs/tags/v') && github.ref == 'refs/heads/main'
-
     needs: build-lin
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    name: Pub Linux build to itch.io
     steps:
     - uses: actions/download-artifact@v3
       with:
