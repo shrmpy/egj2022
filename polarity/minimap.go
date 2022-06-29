@@ -26,11 +26,11 @@ func (m Minimap) WalkMe(j Job, d Delta) {
 func (m Minimap) Walk(j Job, d Delta) {
 	m.Change(Jaeger, Jaeger, j.row, j.col, d.row, d.col)
 }
-
+/*
 // ping animation
 func (m Minimap) Ping(j Job, d Delta) {
 	m.Change(Ping, Ping, j.row, j.col, d.row, d.col)
-}
+}*/
 
 func (m Minimap) Change(oldm, newm Mask, oldrow, oldcol, row, col int) {
 	// apply new mask
