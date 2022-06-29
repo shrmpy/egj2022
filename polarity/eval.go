@@ -20,6 +20,8 @@ func (m *Maze) eval(t Ticket) Delta {
 	switch move.Command {
 	case "walk":
 		return m.walk(t.owner, move.Direction)
+	case "ping":
+		return m.ping(t.owner, move.Direction)
 	default:
 		m.hist("DEBUG exceptional move, %s", move.Command)
 	}
@@ -29,6 +31,7 @@ func (m *Maze) eval(t Ticket) Delta {
 
 // change position in the specified direction
 func (m *Maze) walk(j Job, dir string) Delta {
+	kv := make(map[string]string)
 	row, col, err := posFrom(j.row, j.col, dir, m.width)
 	if err != nil {
 		m.hist("DEBUG %s", err.Error())
@@ -38,10 +41,11 @@ func (m *Maze) walk(j Job, dir string) Delta {
 		m.hist("DEBUG blocked, %s (r%d, c%d) ", j.name, row, col)
 		return unresolved(j)
 	}
-
+	kv["last"] = "walk-" + dir
 	d := Delta{
 		row: row,
 		col: col,
+		kv:  kv,
 	}
 	// mask position in maze
 	m.mini.Walk(j, d)
@@ -51,6 +55,40 @@ func (m *Maze) walk(j Job, dir string) Delta {
 	d.fog = j.fog.Copy()
 	d.fog.WalkMe(j, d)
 
+	return d
+}
+
+// scan in the specified direction
+func (m *Maze) ping(j Job, dir string) Delta {
+	// TODO Clone
+	fog := j.fog.Copy()
+	kv := make(map[string]string)
+	lr, lc := j.row, j.col
+	switch dir {
+	case "w", "west":
+		if j.col <= 0 {
+			return unresolved(j)
+		}
+		kv["last"] = "ping-west"
+		lc = 0
+		for i := j.col; i > 0; i-- {
+			cell := m.mini[j.row][i-1]
+			if cell.Has(Barrier | Junk | Jaeger | Fusion | ToggleSwitch) {
+				fog[j.row][i-1].Set(cell)
+				break
+			}
+		}
+	}
+	d := Delta{
+		fog: fog,
+		row: j.row,
+		col: j.col,
+		inv: j.inv.Copy(),
+		kv:  kv,
+	}
+	// add animation to maze
+	////m.mini.Ping(j, d)
+	m.loop(Ping, j.row, j.col, lr, lc)
 	return d
 }
 
@@ -142,4 +180,5 @@ type Delta struct {
 	inv      Inventory
 	fog      Minimap
 	row, col int
+	kv       map[string]string
 }
